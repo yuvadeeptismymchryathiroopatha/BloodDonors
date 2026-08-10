@@ -175,8 +175,12 @@
               </select>
             </div>
             <div class="form-group">
-              <label for="regAge">Age (Age 18 - 55 required for active status)</label>
-              <input type="number" id="regAge" min="15" max="75" placeholder="e.g. 24">
+              <label for="regUnit">Unit</label>
+              <input type="text" id="regUnit" placeholder="e.g. St. Thomas Unit">
+            </div>
+            <div class="form-group">
+              <label for="regDob">Date of Birth (DOB) <span class="required">*</span></label>
+              <input type="date" id="regDob" required>
             </div>
             <div id="regError" class="alert alert-danger hidden"></div>
             <button type="submit" id="regSubmitBtn" class="btn btn-primary btn-block">Complete Registration</button>
@@ -188,65 +192,58 @@
       <!-- VIEW 2: LOGGED-IN USER PROFILE & DONATION DATE UPDATER CARD -->
       <div id="profileContainer" class="profile-card card hidden">
         <div class="profile-header">
-          <div class="profile-avatar-box">
-            <img id="userAvatar" src="https://ui-avatars.com/api/?name=User&background=dc2626&color=fff" alt="Profile Picture">
+          <img id="profilePic" src="" alt="" class="profile-avatar" style="display:none;">
+          <div class="profile-title-box">
+            <h2 id="profileNameHeading" class="profile-name">Donor Profile</h2>
+            <span id="profileEmail" class="profile-email">email@domain.com</span>
           </div>
-          <div class="profile-user-info">
-            <h2 id="userName">Donor Name</h2>
-            <p id="userEmail" class="text-muted">user@gmail.com</p>
-            <div class="profile-status-badge" id="userStatusBadge">
-              🟢 Active Donor (Eligible)
-            </div>
-          </div>
-          <button class="btn btn-outline btn-sm logout-btn" onclick="profileApp.logoutUser()">
-            🚪 Sign Out
-          </button>
+          <span id="profileStatusBadge" class="profile-status-badge status-active">
+            🟢 Active Donor (Eligible)
+          </span>
         </div>
 
-        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
-
-        <!-- DONATION DATE UPDATER SECTION -->
-        <div class="donation-update-box card">
-          <div class="modal-title">
-            <span class="modal-title-icon" style="font-size:1.8rem;">🩸</span>
-            <div>
-              <h3>Update Last Donation Date</h3>
-              <p class="form-desc" style="margin:0;">Mark when you recently donated blood. Setting this date automatically enforces a 90-day cooling period.</p>
-            </div>
+        <!-- COOLING PERIOD ALERT BANNER -->
+        <div id="coolingPeriodInfo" class="alert alert-warning hidden" style="margin-bottom:1.5rem;">
+          <span style="font-size:1.2rem; margin-right:0.4rem;">⏳</span>
+          <div>
+            <strong>Cooling Period Active</strong>
+            <p id="coolingText" style="margin:0.25rem 0 0 0; font-size:0.85rem;">
+              You donated blood recently. You will become eligible for next donation in 90 days.
+            </p>
           </div>
+        </div>
 
-          <form onsubmit="profileApp.updateDonationDate(event)" style="margin-top: 1.25rem;">
-            <div class="donation-input-row">
+        <!-- DONATION DATE UPDATE CARD -->
+        <div class="donation-update-box">
+          <h4>🩸 Update Last Donated Date</h4>
+          <p class="form-desc" style="margin-bottom:0.75rem;">
+            Keep your donation date updated so searchers know when you are next available.
+          </p>
+          <form id="donationDateForm" onsubmit="profileApp.updateDonationDate(event)">
+            <div class="form-row" style="display:flex; gap:0.75rem; align-items:flex-end;">
               <div class="form-group" style="flex:1; margin-bottom:0;">
                 <label for="profileLastDonationDate">Last Donation Date</label>
-                <input type="date" id="profileLastDonationDate" required>
+                <input type="date" id="profileLastDonationDate">
               </div>
               <button type="submit" id="saveDonationBtn" class="btn btn-primary">
                 💾 Save Donation Date
               </button>
             </div>
-            <div id="coolingPeriodInfo" class="cooling-info-box hidden">
-              <!-- Cooling period countdown rendered dynamically -->
-            </div>
           </form>
         </div>
 
-        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border-color);">
-
-        <!-- FULL PROFILE DETAILS FORM -->
-        <div class="profile-details-form">
-          <h3>My Donor Details</h3>
-          <p class="form-desc">Keep your contact number, blood group, and area up to date so people in need can find you quickly.</p>
-
-          <form onsubmit="profileApp.updateProfileDetails(event)">
+        <!-- PROFILE DETAILS EDIT FORM -->
+        <div class="profile-edit-box" style="margin-top:2rem;">
+          <h4>✏️ Update Donor Information</h4>
+          <form id="profileDetailsForm" onsubmit="profileApp.updateProfileDetails(event)">
             <div class="form-grid">
               <div class="form-group">
                 <label for="profileName">Full Name</label>
                 <input type="text" id="profileName" required>
               </div>
               <div class="form-group">
-                <label for="profilePhone">Phone / WhatsApp Number</label>
-                <input type="tel" id="profilePhone" placeholder="+91 9876543210" required>
+                <label for="profilePhone">Phone Number</label>
+                <input type="tel" id="profilePhone" placeholder="e.g. +91 9876543210" required>
               </div>
               <div class="form-group">
                 <label for="profileBloodGroup">Blood Group</label>
@@ -297,8 +294,12 @@
                 </select>
               </div>
               <div class="form-group">
-                <label for="profileAge">Age</label>
-                <input type="number" id="profileAge" min="15" max="75">
+                <label for="profileUnit">Unit</label>
+                <input type="text" id="profileUnit" placeholder="e.g. St. Thomas Unit">
+              </div>
+              <div class="form-group">
+                <label for="profileDob">Date of Birth (DOB)</label>
+                <input type="date" id="profileDob">
               </div>
             </div>
 

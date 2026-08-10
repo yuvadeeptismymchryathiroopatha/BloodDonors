@@ -66,6 +66,8 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS zone VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS forona VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS age INT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS dob DATE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS unit VARCHAR(100);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_donation_date DATE;
     `);
 

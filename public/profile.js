@@ -167,10 +167,20 @@ class ProfileApp {
     const phone = document.getElementById('regPhone').value;
     const bloodGroup = document.getElementById('regBloodGroup').value;
     const zone = document.getElementById('regZone').value;
-    const forona = document.getElementById('regForane').value;
-    const age = document.getElementById('regAge').value;
+    const unit = document.getElementById('regUnit')?.value || '';
+    const dob = document.getElementById('regDob')?.value || '';
     const errorEl = document.getElementById('regError');
     const submitBtn = document.getElementById('regSubmitBtn');
+
+    if (dob) {
+      const dDate = new Date(dob);
+      const today = new Date();
+      if (dDate > today) {
+        errorEl.textContent = 'Date of birth cannot be in the future.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+    }
 
     errorEl.classList.add('hidden');
     submitBtn.disabled = true;
@@ -181,7 +191,7 @@ class ProfileApp {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, email, password, phone, bloodGroup, zone, forona, age
+          name, email, password, phone, bloodGroup, zone, forona, unit, dob
         })
       });
 
@@ -271,7 +281,13 @@ class ProfileApp {
     document.getElementById('profileZone').value = user.zone || 'Changanacherry Zone';
     const profileForaneEl = document.getElementById('profileForane');
     if (profileForaneEl) profileForaneEl.value = user.forona || 'Changanacherry';
-    document.getElementById('profileAge').value = user.age || '';
+    const unitEl = document.getElementById('profileUnit');
+    if (unitEl) unitEl.value = user.unit || '';
+    const dobEl = document.getElementById('profileDob');
+    if (dobEl) {
+      dobEl.max = new Date().toISOString().split('T')[0];
+      dobEl.value = user.dob || '';
+    }
 
     // Donation Date
     const lastDateInput = document.getElementById('profileLastDonationDate');
@@ -375,10 +391,21 @@ class ProfileApp {
     const phone = document.getElementById('profilePhone').value;
     const bloodGroup = document.getElementById('profileBloodGroup').value;
     const zone = document.getElementById('profileZone').value;
-    const forona = document.getElementById('profileForane').value;
-    const age = document.getElementById('profileAge').value;
+    const unit = document.getElementById('profileUnit')?.value || '';
+    const dob = document.getElementById('profileDob')?.value || '';
     const alertEl = document.getElementById('profileAlert');
     const saveBtn = document.getElementById('saveProfileBtn');
+
+    if (dob) {
+      const dDate = new Date(dob);
+      const today = new Date();
+      if (dDate > today) {
+        alertEl.className = 'alert alert-danger';
+        alertEl.textContent = 'Date of birth cannot be in the future.';
+        alertEl.classList.remove('hidden');
+        return;
+      }
+    }
 
     alertEl.classList.add('hidden');
     saveBtn.disabled = true;
@@ -389,7 +416,7 @@ class ProfileApp {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, phone, bloodGroup, zone, forona, age
+          name, phone, bloodGroup, zone, forona, unit, dob
         })
       });
 

@@ -107,7 +107,21 @@ async function refreshSchemaMetadata(clientOrPool = pool) {
   return { columns, filterableOptions, totalRecords: allRecordsRes.rows.length };
 }
 
-// Sync User Profile to Public Donor Directory (data_records)
+function calculateAgeFromDob(dobStr) {
+  if (!dobStr) return null;
+  const dob = new Date(dobStr);
+  if (isNaN(dob.getTime())) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - dob.getFullYear();
+  const monthDiff = today.getMonth() - dob.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+    age--;
+  }
+  return age >= 0 ? age : null;
+}
+
+// SYNC USER PROFILE TO PUBLIC DATA_RECORDS TABLE
 async function syncUserProfileToDataRecords(userId) {
   try {
     const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
@@ -116,12 +130,19 @@ async function syncUserProfileToDataRecords(userId) {
 
     if (!user.name || !user.phone) return;
 
+    let computedAge = user.age;
+    if (user.dob) {
+      computedAge = calculateAgeFromDob(user.dob);
+    }
+
     const formattedRecord = {
       "Name": user.name,
-      "Age": user.age ? user.age.toString() : "25",
+      "Age": computedAge !== null && computedAge !== undefined ? computedAge.toString() : (user.age ? user.age.toString() : "25"),
+      "Date of Birth": user.dob ? user.dob.toISOString().split('T')[0] : "",
       "Phone": user.phone,
-      "Zone": user.zone || "Changanacherry Zone",
+      "Unit": user.unit || "",
       "Forane": user.forona || "Changanacherry",
+      "Zone": user.zone || "Changanacherry Zone",
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
       "Last Donation Date": user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : ""
@@ -229,6 +250,8 @@ app.post('/api/auth/google', async (req, res) => {
       bloodGroup: user.blood_group,
       zone: user.zone,
       forona: user.forona,
+      unit: user.unit,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
       age: user.age,
       lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
     };
@@ -244,10 +267,10 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-// Email/Password Registration Endpoint
+// EMAIL REGISTRATION ENDPOINT
 app.post('/api/auth/register', async (req, res) => {
   try {
-    const { email, password, name, phone, bloodGroup, zone, forona, age, lastDonationDate } = req.body;
+    const { email, password, name, phone, bloodGroup, zone, forona, unit, dob, age, lastDonationDate } = req.body;
 
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Email, password, and name are required.' });
@@ -270,12 +293,22 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
+    let computedAge = age ? parseInt(age, 10) : null;
+    if (dob) {
+      const dDate = new Date(dob);
+      const today = new Date();
+      if (dDate > today) {
+        return res.status(400).json({ success: false, error: 'Date of birth cannot be in the future.' });
+      }
+      computedAge = calculateAgeFromDob(dob);
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
     const insertRes = await pool.query(
-      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, age, last_donation_date) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, unit, dob, age, last_donation_date) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
       [
         email.trim(),
         passwordHash,
@@ -284,7 +317,9 @@ app.post('/api/auth/register', async (req, res) => {
         bloodGroup ? bloodGroup.trim() : null,
         zone ? zone.trim() : null,
         forona ? forona.trim() : null,
-        age ? parseInt(age, 10) : null,
+        unit ? unit.trim() : null,
+        dob ? dob : null,
+        computedAge,
         lastDonationDate ? lastDonationDate : null
       ]
     );
@@ -300,6 +335,8 @@ app.post('/api/auth/register', async (req, res) => {
       bloodGroup: user.blood_group,
       zone: user.zone,
       forona: user.forona,
+      unit: user.unit,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
       age: user.age,
       lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
     };
@@ -350,6 +387,8 @@ app.post('/api/auth/login', async (req, res) => {
       bloodGroup: user.blood_group,
       zone: user.zone,
       forona: user.forona,
+      unit: user.unit,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
       age: user.age,
       lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
     };
@@ -385,7 +424,7 @@ app.post('/api/auth/logout', (req, res) => {
 app.put('/api/user/profile', requireUser, async (req, res) => {
   try {
     const userId = req.session.user.id;
-    const { name, phone, bloodGroup, zone, forona, age, lastDonationDate } = req.body;
+    const { name, phone, bloodGroup, zone, forona, unit, dob, age, lastDonationDate } = req.body;
 
     if (lastDonationDate) {
       const dDate = new Date(lastDonationDate);
@@ -396,6 +435,16 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       }
     }
 
+    let computedAge = age ? parseInt(age, 10) : null;
+    if (dob) {
+      const dDate = new Date(dob);
+      const today = new Date();
+      if (dDate > today) {
+        return res.status(400).json({ success: false, error: 'Date of birth cannot be in the future.' });
+      }
+      computedAge = calculateAgeFromDob(dob);
+    }
+
     const updateRes = await pool.query(
       `UPDATE users SET 
         name = COALESCE($1, name),
@@ -403,17 +452,21 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
         blood_group = COALESCE($3, blood_group),
         zone = COALESCE($4, zone),
         forona = COALESCE($5, forona),
-        age = COALESCE($6, age),
-        last_donation_date = COALESCE($7, last_donation_date),
+        unit = COALESCE($6, unit),
+        dob = COALESCE($7, dob),
+        age = COALESCE($8, age),
+        last_donation_date = COALESCE($9, last_donation_date),
         updated_at = CURRENT_TIMESTAMP
-       WHERE id = $8 RETURNING *`,
+       WHERE id = $10 RETURNING *`,
       [
         name ? name.trim() : null,
         phone ? phone.trim() : null,
         bloodGroup ? bloodGroup.trim() : null,
         zone ? zone.trim() : null,
         forona ? forona.trim() : null,
-        age ? parseInt(age, 10) : null,
+        unit ? unit.trim() : null,
+        dob ? dob : null,
+        computedAge,
         lastDonationDate ? lastDonationDate : null,
         userId
       ]
@@ -423,7 +476,6 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
 
     req.session.user = {
       id: user.id,
-      googleId: user.google_id,
       email: user.email,
       name: user.name,
       picture: user.picture,
@@ -431,6 +483,8 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       bloodGroup: user.blood_group,
       zone: user.zone,
       forona: user.forona,
+      unit: user.unit,
+      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
       age: user.age,
       lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
     };
@@ -566,6 +620,15 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     let records = allRes.rows.map(row => {
       const rec = row.data || {};
       
+      const dobVal = rec['Date of Birth'] || rec['DOB'] || rec['dob'];
+      if (dobVal) {
+        const dynamicAge = calculateAgeFromDob(dobVal);
+        if (dynamicAge !== null) {
+          const aKey = Object.keys(rec).find(k => /age/i.test(k)) || 'Age';
+          rec[aKey] = dynamicAge.toString();
+        }
+      }
+
       const ageKey = Object.keys(rec).find(k => /age/i.test(k));
       const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
@@ -1094,6 +1157,15 @@ app.get('/api/search', async (req, res) => {
 
     const records = dataRes.rows.map(r => {
       const rec = { id: r.id, ...r.data };
+
+      const dobVal = rec['Date of Birth'] || rec['DOB'] || rec['dob'];
+      if (dobVal) {
+        const dynamicAge = calculateAgeFromDob(dobVal);
+        if (dynamicAge !== null) {
+          const aKey = Object.keys(rec).find(k => /age/i.test(k)) || 'Age';
+          rec[aKey] = dynamicAge.toString();
+        }
+      }
 
       const ageKey = Object.keys(rec).find(k => /age/i.test(k));
       const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
