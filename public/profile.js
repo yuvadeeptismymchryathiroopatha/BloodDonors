@@ -276,6 +276,9 @@ class ProfileApp {
     // Donation Date
     const lastDateInput = document.getElementById('profileLastDonationDate');
     const coolingInfoEl = document.getElementById('coolingPeriodInfo');
+    if (lastDateInput) {
+      lastDateInput.max = new Date().toISOString().split('T')[0];
+    }
 
     if (user.lastDonationDate) {
       lastDateInput.value = user.lastDonationDate;
@@ -324,10 +327,20 @@ class ProfileApp {
 
   async updateDonationDate(e) {
     e.preventDefault();
-    const dateVal = document.getElementById('profileLastDonationDate').value;
+    const lastDateInput = document.getElementById('profileLastDonationDate');
+    const dateVal = lastDateInput ? lastDateInput.value : '';
     const saveBtn = document.getElementById('saveDonationBtn');
 
     if (!dateVal) return;
+
+    const selectedD = new Date(dateVal);
+    const today = new Date();
+    today.setHours(23, 59, 59, 999);
+
+    if (selectedD > today) {
+      alert('Last donation date cannot be in the future.');
+      return;
+    }
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';

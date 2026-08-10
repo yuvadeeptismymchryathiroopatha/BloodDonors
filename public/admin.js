@@ -543,6 +543,10 @@ class AdminApp {
           opt.textContent = bg || `-- Select ${col} --`;
           input.appendChild(opt);
         });
+      } else if (/date|donation|last/i.test(col)) {
+        input = document.createElement('input');
+        input.type = 'date';
+        input.max = new Date().toISOString().split('T')[0];
       } else {
         input = document.createElement('input');
         input.type = 'text';
@@ -595,6 +599,11 @@ class AdminApp {
           if (bg === currentVal) opt.selected = true;
           input.appendChild(opt);
         });
+      } else if (/date|donation|last/i.test(col)) {
+        input = document.createElement('input');
+        input.type = 'date';
+        input.max = new Date().toISOString().split('T')[0];
+        input.value = currentVal;
       } else {
         input = document.createElement('input');
         input.type = 'text';
@@ -631,6 +640,22 @@ class AdminApp {
     inputs.forEach(input => {
       dataObj[input.name] = input.value.trim();
     });
+
+    for (const [key, val] of Object.entries(dataObj)) {
+      if (/date|donation|last/i.test(key) && val) {
+        const dDate = new Date(val);
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (dDate > today) {
+          alertEl.className = 'alert alert-danger';
+          alertEl.textContent = `${key} cannot be in the future!`;
+          alertEl.classList.remove('hidden');
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save Record';
+          return;
+        }
+      }
+    }
 
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving...';

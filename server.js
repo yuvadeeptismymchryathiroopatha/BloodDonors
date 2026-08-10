@@ -261,6 +261,15 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ success: false, error: 'An account with this email already exists. Please sign in.' });
     }
 
+    if (lastDonationDate) {
+      const dDate = new Date(lastDonationDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dDate > today) {
+        return res.status(400).json({ success: false, error: 'Last donation date cannot be in the future.' });
+      }
+    }
+
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -377,6 +386,15 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
   try {
     const userId = req.session.user.id;
     const { name, phone, bloodGroup, zone, forona, age, lastDonationDate } = req.body;
+
+    if (lastDonationDate) {
+      const dDate = new Date(lastDonationDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dDate > today) {
+        return res.status(400).json({ success: false, error: 'Last donation date cannot be in the future.' });
+      }
+    }
 
     const updateRes = await pool.query(
       `UPDATE users SET 
@@ -620,6 +638,15 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
     }
 
     const donationDate = req.body.donationDate || new Date().toISOString().split('T')[0];
+
+    if (donationDate) {
+      const dDate = new Date(donationDate);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dDate > today) {
+        return res.status(400).json({ success: false, error: 'Donation date cannot be in the future.' });
+      }
+    }
 
     const getRes = await pool.query('SELECT data FROM data_records WHERE id = $1', [recordId]);
     if (getRes.rows.length === 0) {
