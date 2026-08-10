@@ -24,7 +24,7 @@ class BloodDonorApp {
       'alappuzha': ['Alappuzha', 'Muhamma'],
       'kuttanad': ['Edathua', 'Pulinkunnoo', 'Champakulam'],
       'kollam': ['Kollam-Ayoor'],
-      'trivandrum': ['Trivandrum', 'Thiruvananthapuram', 'Amboori'],
+      'trivandrum': ['Trivandrum', 'Amboori'],
       'chenganoor': ['Chenganoor']
     };
 
