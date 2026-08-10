@@ -14,6 +14,7 @@ class AdminApp {
     this.selectedCSVFile = null;
     this.adminCurrentPage = 1;
     this.adminSearchQuery = '';
+    this.adminStatusFilter = 'all'; // 'all', 'active', 'non-active'
     this.adminRecordsMap = {};
     this.selectedRecordIds = new Set();
 
@@ -207,13 +208,14 @@ class AdminApp {
 
     if (!tableHeadRow || !tableBody) return;
 
-    tableBody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:2rem;">⏳ Loading database records...</td></tr>`;
+    tableBody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding:2rem;">⏳ Loading database records...</td></tr>`;
 
     try {
       const queryParams = new URLSearchParams({
         page: this.adminCurrentPage,
         limit: 15,
-        q: this.adminSearchQuery
+        q: this.adminSearchQuery,
+        statusFilter: this.adminStatusFilter
       });
 
       const res = await fetch(`/api/admin/records?${queryParams.toString()}`);
@@ -222,12 +224,13 @@ class AdminApp {
       if (!data.success) throw new Error(data.error);
 
       const records = data.records || [];
-      const columns = this.schema.columns || (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
+      const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
 
       // 1. Build Header
       let headHtml = `
         <th style="width:40px;"><input type="checkbox" id="selectAllCheckbox" onchange="adminApp.toggleSelectAll(this)"></th>
         <th>#</th>
+        <th>Status</th>
       `;
       columns.forEach(col => {
         headHtml += `<th>${this.escapeHtml(col)}</th>`;
@@ -240,7 +243,7 @@ class AdminApp {
 
       // 2. Build Table Rows
       if (records.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="${columns.length + 3}" style="text-align:center; padding:2rem; color:var(--text-muted);">No records found in database. Upload a CSV file or click "Add New Record".</td></tr>`;
+        tableBody.innerHTML = `<tr><td colspan="${columns.length + 4}" style="text-align:center; padding:2rem; color:var(--text-muted);">No matching donor records found for status "${this.adminStatusFilter}".</td></tr>`;
         if (indicator) indicator.textContent = 'Page 1 of 1';
         if (prevBtn) prevBtn.disabled = true;
         if (nextBtn) nextBtn.disabled = true;
@@ -254,9 +257,12 @@ class AdminApp {
         this.adminRecordsMap[row.id] = row.data;
         const tr = document.createElement('tr');
 
+        let statusStyle = row.isActive ? 'color:#16a34a; font-weight:700;' : 'color:#dc2626; font-weight:700;';
+
         let rowHtml = `
           <td><input type="checkbox" class="row-checkbox" value="${row.id}" onchange="adminApp.toggleRowSelect(${row.id}, this.checked)"></td>
           <td>${(this.adminCurrentPage - 1) * 15 + idx + 1}</td>
+          <td><span style="${statusStyle}">${this.escapeHtml(row.statusBadge || 'Active')}</span></td>
         `;
 
         columns.forEach(col => {
@@ -285,8 +291,14 @@ class AdminApp {
 
     } catch (err) {
       console.error('Failed to load admin table:', err);
-      tableBody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:2rem; color:var(--danger);">Failed to load admin data table.</td></tr>`;
+      tableBody.innerHTML = `<tr><td colspan="14" style="text-align:center; padding:2rem; color:var(--danger);">Failed to load admin data table.</td></tr>`;
     }
+  }
+
+  filterByStatus(statusValue) {
+    this.adminStatusFilter = statusValue;
+    this.adminCurrentPage = 1;
+    this.loadAdminTable();
   }
 
   async markRecordDonated(id) {
@@ -411,6 +423,7 @@ class AdminApp {
   async loadAnalytics() {
     const totalEl = document.getElementById('statTotalDonors');
     const eligibleEl = document.getElementById('statEligibleDonors');
+    const nonActiveEl = document.getElementById('statNonActiveDonors');
     const recentlyEl = document.getElementById('statDonatedRecently');
     const zoneListEl = document.getElementById('zoneBreakdownList');
     const foronaListEl = document.getElementById('foronaBreakdownList');
@@ -418,6 +431,7 @@ class AdminApp {
 
     if (totalEl) totalEl.textContent = '...';
     if (eligibleEl) eligibleEl.textContent = '...';
+    if (nonActiveEl) nonActiveEl.textContent = '...';
     if (recentlyEl) recentlyEl.textContent = '...';
 
     try {
@@ -428,6 +442,7 @@ class AdminApp {
 
       if (totalEl) totalEl.textContent = data.totalRecords;
       if (eligibleEl) eligibleEl.textContent = data.eligibleCount;
+      if (nonActiveEl) nonActiveEl.textContent = data.nonActiveCount || (data.totalRecords - data.eligibleCount);
       if (recentlyEl) recentlyEl.textContent = data.donatedRecentlyCount;
 
       const maxCount = Math.max(1, data.totalRecords);

@@ -202,31 +202,73 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   }
 });
 
-// GET Admin Records
+// GET Admin Records with Status Filtering (all, active, non-active)
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const offset = (page - 1) * limit;
     const q = req.query.q ? req.query.q.trim() : '';
+    const statusFilter = req.query.statusFilter || 'all'; // 'all', 'active', 'non-active'
 
-    let whereClause = '';
-    const values = [];
+    const allRes = await pool.query('SELECT id, data, created_at, search_text FROM data_records ORDER BY id DESC');
+    const now = new Date();
 
+    let records = allRes.rows.map(row => {
+      const rec = row.data || {};
+      
+      // Determine eligibility status
+      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
+      const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
+      const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
+
+      let isCoolingPeriod = false;
+      const lastDonated = rec['Last Donation Date'];
+      if (lastDonated) {
+        const dDate = new Date(lastDonated);
+        const diffDays = (now - dDate) / (1000 * 60 * 60 * 24);
+        if (diffDays < 90) isCoolingPeriod = true;
+      }
+
+      let status = 'Active';
+      let statusBadge = '🟢 Active';
+
+      if (!isAgeEligible) {
+        status = 'Non-Active';
+        statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
+      } else if (isCoolingPeriod) {
+        status = 'Non-Active';
+        statusBadge = `🟡 Donated (< 90 Days)`;
+      }
+
+      return {
+        id: row.id,
+        data: rec,
+        search_text: row.search_text,
+        created_at: row.created_at,
+        isActive: status === 'Active',
+        statusBadge
+      };
+    });
+
+    // Keyword Search Filter
     if (q) {
-      whereClause = 'WHERE search_text ILIKE $1';
-      values.push(`%${q}%`);
+      records = records.filter(r => (r.search_text || '').toLowerCase().includes(q.toLowerCase()));
     }
 
-    const countRes = await pool.query(`SELECT COUNT(*) FROM data_records ${whereClause}`, values);
-    const totalRecords = parseInt(countRes.rows[0].count, 10);
+    // Status Filter (active vs non-active)
+    if (statusFilter === 'active') {
+      records = records.filter(r => r.isActive);
+    } else if (statusFilter === 'non-active') {
+      records = records.filter(r => !r.isActive);
+    }
 
-    const dataSql = `SELECT id, data, created_at FROM data_records ${whereClause} ORDER BY id DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
-    const dataRes = await pool.query(dataSql, [...values, limit, offset]);
+    const totalRecords = records.length;
+    const offset = (page - 1) * limit;
+    const paginatedRecords = records.slice(offset, offset + limit);
 
     return res.json({
       success: true,
-      records: dataRes.rows,
+      records: paginatedRecords,
       pagination: {
         page,
         limit,
@@ -240,7 +282,7 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
   }
 });
 
-// MARK DONATION COMPLETED (Sets Last Donation Date and status)
+// MARK DONATION COMPLETED
 app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) => {
   try {
     const recordId = parseInt(req.params.id, 10);
@@ -292,6 +334,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const byBloodGroup = {};
     let eligibleCount = 0;
     let donatedRecentlyCount = 0;
+    let ineligibleAgeCount = 0;
 
     const now = new Date();
 
@@ -316,6 +359,10 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       const ageNum = ageKey && r[ageKey] ? parseInt(r[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
 
+      if (!isAgeEligible) {
+        ineligibleAgeCount++;
+      }
+
       let isDonatedRecently = false;
       const donationDateStr = r['Last Donation Date'];
       if (donationDateStr) {
@@ -332,11 +379,15 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       }
     });
 
+    const nonActiveCount = totalRecords - eligibleCount;
+
     return res.json({
       success: true,
       totalRecords,
       eligibleCount,
+      nonActiveCount,
       donatedRecentlyCount,
+      ineligibleAgeCount,
       byZone,
       byForona,
       byBloodGroup

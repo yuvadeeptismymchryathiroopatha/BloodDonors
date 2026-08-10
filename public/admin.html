@@ -87,12 +87,19 @@
           </button>
         </div>
 
-        <!-- TAB 1: DATA TABLE WITH MULTI-SELECT & MARK DONATED -->
+        <!-- TAB 1: DATA TABLE WITH STATUS FILTER (ACTIVE vs NON-ACTIVE) -->
         <div id="tabTable" class="tab-content">
           <div class="admin-table-toolbar">
             <div class="toolbar-left">
               <div class="admin-search-input">
-                <input type="text" id="adminSearchInput" placeholder="Search / filter in table..." onkeyup="adminApp.filterAdminTable()">
+                <input type="text" id="adminSearchInput" placeholder="Search in table..." onkeyup="adminApp.filterAdminTable()">
+              </div>
+              <div class="status-filter-select">
+                <select id="adminStatusFilter" onchange="adminApp.filterByStatus(this.value)" class="filter-select">
+                  <option value="all" selected>All Donors (Active & Non-Active)</option>
+                  <option value="active">🟢 Active Donors Only (18 - 55)</option>
+                  <option value="non-active">⚠️ Non-Active Donors Only (Ineligible Age / Cooling Period)</option>
+                </select>
               </div>
               <button id="bulkDeleteBtn" class="btn btn-danger btn-sm hidden" onclick="adminApp.confirmBulkDelete()">
                 🗑️ Delete Selected (<span id="selectedCount">0</span>)
@@ -111,6 +118,7 @@
                 <tr id="adminTableHeadRow">
                   <th style="width:40px;"><input type="checkbox" id="selectAllCheckbox" onchange="adminApp.toggleSelectAll(this)"></th>
                   <th>#</th>
+                  <th>Status</th>
                   <!-- Dynamic Headers -->
                 </tr>
               </thead>
@@ -149,6 +157,14 @@
               <div class="stat-info">
                 <span class="stat-num" id="statEligibleDonors">0</span>
                 <span class="stat-label">Active Eligible Donors (18-55)</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">⚠️</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statNonActiveDonors">0</span>
+                <span class="stat-label">Non-Active Donors</span>
               </div>
             </div>
 
