@@ -74,7 +74,10 @@
         <!-- Navigation Tabs -->
         <div class="tab-buttons">
           <button class="tab-btn active" id="tabTableBtn" onclick="adminApp.switchTab('table')">
-            📊 Data Table & Bulk Actions
+            📊 Data Table & Actions
+          </button>
+          <button class="tab-btn" id="tabAnalyticsBtn" onclick="adminApp.switchTab('analytics')">
+            📈 Analytics & Breakdown
           </button>
           <button class="tab-btn" id="tabUploadBtn" onclick="adminApp.switchTab('upload')">
             📤 Upload CSV File
@@ -84,7 +87,7 @@
           </button>
         </div>
 
-        <!-- TAB 1: DATA TABLE WITH MULTI-SELECT BULK DELETE -->
+        <!-- TAB 1: DATA TABLE WITH MULTI-SELECT & MARK DONATED -->
         <div id="tabTable" class="tab-content">
           <div class="admin-table-toolbar">
             <div class="toolbar-left">
@@ -124,7 +127,69 @@
           </div>
         </div>
 
-        <!-- TAB 2: CSV UPLOAD -->
+        <!-- TAB 2: ANALYTICS & BREAKDOWN -->
+        <div id="tabAnalytics" class="tab-content hidden">
+          <div class="analytics-header">
+            <h3>System Analytics & Statistics</h3>
+            <button class="btn btn-outline btn-sm" onclick="adminApp.loadAnalytics()">🔄 Refresh Stats</button>
+          </div>
+
+          <!-- Overview Stat Summary Cards -->
+          <div class="analytics-summary-grid">
+            <div class="stat-card">
+              <div class="stat-icon">👥</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statTotalDonors">0</span>
+                <span class="stat-label">Total Registered Donors</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">✅</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statEligibleDonors">0</span>
+                <span class="stat-label">Active Eligible Donors (18-55)</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">🩸</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statDonatedRecently">0</span>
+                <span class="stat-label">In Cooling Period (< 90 Days)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Detailed Breakdown Grid -->
+          <div class="analytics-sections-grid">
+            <!-- Zone Breakdown Card -->
+            <div class="analytics-card">
+              <h4>🗺️ Breakdown by Zone (മേഖല)</h4>
+              <div id="zoneBreakdownList" class="breakdown-list">
+                <!-- Dynamic zone bars -->
+              </div>
+            </div>
+
+            <!-- Blood Group Breakdown Card -->
+            <div class="analytics-card">
+              <h4>🩸 Breakdown by Blood Group</h4>
+              <div id="bloodGroupBreakdownGrid" class="blood-group-stats-grid">
+                <!-- Dynamic blood group pills -->
+              </div>
+            </div>
+
+            <!-- Forona Breakdown Card -->
+            <div class="analytics-card full-width">
+              <h4>🏛️ Breakdown by Forona (ഫൊറോന)</h4>
+              <div id="foronaBreakdownList" class="breakdown-list-grid">
+                <!-- Dynamic forona bars -->
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: CSV UPLOAD -->
         <div id="tabUpload" class="tab-content hidden">
           <div class="upload-zone" id="dropZone">
             <div class="upload-icon">📁</div>
@@ -160,7 +225,7 @@
           </div>
         </div>
 
-        <!-- TAB 3: CREDENTIAL SETTINGS -->
+        <!-- TAB 4: CREDENTIAL SETTINGS -->
         <div id="tabSettings" class="tab-content hidden">
           <p class="form-desc">Update your administrator username and password securely.</p>
           <form id="changeCredsForm" onsubmit="adminApp.handleChangeCredentials(event)">

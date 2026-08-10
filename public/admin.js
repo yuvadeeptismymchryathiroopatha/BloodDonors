@@ -1,5 +1,5 @@
 /**
- * Bloodrupatha - Dedicated Admin Portal JavaScript
+ * Yuva Blood Forum - Dedicated Admin Portal JavaScript
  */
 
 class AdminApp {
@@ -123,20 +123,26 @@ class AdminApp {
 
   switchTab(tabName) {
     const tableBtn = document.getElementById('tabTableBtn');
+    const analyticsBtn = document.getElementById('tabAnalyticsBtn');
     const uploadBtn = document.getElementById('tabUploadBtn');
     const settingsBtn = document.getElementById('tabSettingsBtn');
 
     const tableTab = document.getElementById('tabTable');
+    const analyticsTab = document.getElementById('tabAnalytics');
     const uploadTab = document.getElementById('tabUpload');
     const settingsTab = document.getElementById('tabSettings');
 
-    [tableBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
-    [tableTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
+    [tableBtn, analyticsBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
+    [tableTab, analyticsTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
 
     if (tabName === 'table') {
       tableBtn?.classList.add('active');
       tableTab?.classList.remove('hidden');
       this.loadAdminTable();
+    } else if (tabName === 'analytics') {
+      analyticsBtn?.classList.add('active');
+      analyticsTab?.classList.remove('hidden');
+      this.loadAnalytics();
     } else if (tabName === 'upload') {
       uploadBtn?.classList.add('active');
       uploadTab?.classList.remove('hidden');
@@ -190,7 +196,7 @@ class AdminApp {
     }
   }
 
-  // --- ADMIN DATA TABLE & BULK SELECTION ---
+  // --- ADMIN DATA TABLE & MARK DONATED ---
 
   async loadAdminTable() {
     const tableHeadRow = document.getElementById('adminTableHeadRow');
@@ -198,7 +204,6 @@ class AdminApp {
     const indicator = document.getElementById('adminPageIndicator');
     const prevBtn = document.getElementById('adminPrevBtn');
     const nextBtn = document.getElementById('adminNextBtn');
-    const selectAllCb = document.getElementById('selectAllCheckbox');
 
     if (!tableHeadRow || !tableBody) return;
 
@@ -219,7 +224,7 @@ class AdminApp {
       const records = data.records || [];
       const columns = this.schema.columns || (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
 
-      // 1. Build Header with Select All Checkbox
+      // 1. Build Header
       let headHtml = `
         <th style="width:40px;"><input type="checkbox" id="selectAllCheckbox" onchange="adminApp.toggleSelectAll(this)"></th>
         <th>#</th>
@@ -230,7 +235,6 @@ class AdminApp {
       headHtml += `<th style="text-align:right;">Actions</th>`;
       tableHeadRow.innerHTML = headHtml;
 
-      // Reset selection state for page reload
       this.selectedRecordIds.clear();
       this.updateSelectedCount();
 
@@ -263,6 +267,7 @@ class AdminApp {
         rowHtml += `
           <td style="text-align:right;">
             <div class="action-btns" style="justify-content:flex-end;">
+              <button class="btn-icon btn-icon-donate" title="Mark Blood Donation Completed" onclick="adminApp.markRecordDonated(${row.id})">🩸 Donated</button>
               <button class="btn-icon" title="Edit Record" onclick="adminApp.openEditRecordModal(${row.id})">✏️ Edit</button>
               <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="adminApp.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
             </div>
@@ -281,6 +286,32 @@ class AdminApp {
     } catch (err) {
       console.error('Failed to load admin table:', err);
       tableBody.innerHTML = `<tr><td colspan="12" style="text-align:center; padding:2rem; color:var(--danger);">Failed to load admin data table.</td></tr>`;
+    }
+  }
+
+  async markRecordDonated(id) {
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = prompt(`Enter donation date for record #${id} (YYYY-MM-DD):`, today);
+    if (!dateInput) return;
+
+    try {
+      const res = await fetch(`/api/admin/records/${id}/mark-donated`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ donationDate: dateInput.trim() })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        this.showToast(`🩸 Marked donation completed on ${dateInput.trim()}`);
+        await this.loadSchema();
+        await this.loadAdminTable();
+      } else {
+        alert(data.error || 'Failed to mark donation completed.');
+      }
+    } catch (err) {
+      alert('Error marking donation.');
     }
   }
 
@@ -308,7 +339,6 @@ class AdminApp {
       this.selectedRecordIds.delete(id);
     }
 
-    // Check if master checkbox should be checked
     const masterCb = document.getElementById('selectAllCheckbox');
     const allRowCbs = document.querySelectorAll('.row-checkbox');
     if (masterCb && allRowCbs.length > 0) {
@@ -376,7 +406,96 @@ class AdminApp {
     this.loadAdminTable();
   }
 
-  // --- ADD / EDIT SINGLE RECORD ---
+  // --- ANALYTICS DASHBOARD ---
+
+  async loadAnalytics() {
+    const totalEl = document.getElementById('statTotalDonors');
+    const eligibleEl = document.getElementById('statEligibleDonors');
+    const recentlyEl = document.getElementById('statDonatedRecently');
+    const zoneListEl = document.getElementById('zoneBreakdownList');
+    const foronaListEl = document.getElementById('foronaBreakdownList');
+    const bgGridEl = document.getElementById('bloodGroupBreakdownGrid');
+
+    if (totalEl) totalEl.textContent = '...';
+    if (eligibleEl) eligibleEl.textContent = '...';
+    if (recentlyEl) recentlyEl.textContent = '...';
+
+    try {
+      const res = await fetch('/api/admin/analytics');
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      if (totalEl) totalEl.textContent = data.totalRecords;
+      if (eligibleEl) eligibleEl.textContent = data.eligibleCount;
+      if (recentlyEl) recentlyEl.textContent = data.donatedRecentlyCount;
+
+      const maxCount = Math.max(1, data.totalRecords);
+
+      // 1. Zone Breakdown
+      if (zoneListEl) {
+        zoneListEl.innerHTML = '';
+        const zoneEntries = Object.entries(data.byZone || {}).sort((a, b) => b[1] - a[1]);
+        zoneEntries.forEach(([zoneName, count]) => {
+          const pct = Math.round((count / maxCount) * 100);
+          const item = document.createElement('div');
+          item.className = 'breakdown-item';
+          item.innerHTML = `
+            <div class="breakdown-label-row">
+              <span>${this.escapeHtml(zoneName)}</span>
+              <span><strong>${count}</strong> donors (${pct}%)</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${pct}%;"></div>
+            </div>
+          `;
+          zoneListEl.appendChild(item);
+        });
+      }
+
+      // 2. Forona Breakdown
+      if (foronaListEl) {
+        foronaListEl.innerHTML = '';
+        const foronaEntries = Object.entries(data.byForona || {}).sort((a, b) => b[1] - a[1]);
+        foronaEntries.forEach(([foronaName, count]) => {
+          const pct = Math.round((count / maxCount) * 100);
+          const item = document.createElement('div');
+          item.className = 'breakdown-item';
+          item.innerHTML = `
+            <div class="breakdown-label-row">
+              <span>${this.escapeHtml(foronaName)}</span>
+              <span><strong>${count}</strong></span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width: ${pct}%;"></div>
+            </div>
+          `;
+          foronaListEl.appendChild(item);
+        });
+      }
+
+      // 3. Blood Group Breakdown
+      if (bgGridEl) {
+        bgGridEl.innerHTML = '';
+        const standardGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        standardGroups.forEach(bg => {
+          const count = data.byBloodGroup[bg] || 0;
+          const pill = document.createElement('div');
+          pill.className = 'bg-stat-pill';
+          pill.innerHTML = `
+            <span class="bg-stat-type">${bg}</span>
+            <span class="bg-stat-count">${count} donors</span>
+          `;
+          bgGridEl.appendChild(pill);
+        });
+      }
+
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    }
+  }
+
+  // --- ADD / EDIT RECORD MODAL ---
 
   openAddRecordModal() {
     const modal = document.getElementById('editRecordModal');
@@ -389,7 +508,7 @@ class AdminApp {
     idInput.value = '';
     title.textContent = 'Add New Record';
 
-    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'District', 'Unit / Forona (ഫൊറോന)', 'Location', 'Phone', 'Availability'];
+    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'Zone (മേഖല)', 'Forona (ഫൊറോന)', 'Phone', 'Age', 'Availability'];
 
     fieldsContainer.innerHTML = '';
     columns.forEach(col => {

@@ -240,6 +240,113 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
   }
 });
 
+// MARK DONATION COMPLETED (Sets Last Donation Date and status)
+app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) => {
+  try {
+    const recordId = parseInt(req.params.id, 10);
+    if (isNaN(recordId)) {
+      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
+    }
+
+    const donationDate = req.body.donationDate || new Date().toISOString().split('T')[0];
+
+    const getRes = await pool.query('SELECT data FROM data_records WHERE id = $1', [recordId]);
+    if (getRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Record not found.' });
+    }
+
+    const currentData = getRes.rows[0].data || {};
+    currentData['Last Donation Date'] = donationDate;
+    currentData['Availability'] = `Donated on ${donationDate} (3 Month Cooling Period)`;
+
+    const searchTextParts = Object.values(currentData).map(v => (v || '').toString().trim()).filter(Boolean);
+    const searchText = searchTextParts.join(' | ');
+
+    await pool.query(
+      'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3',
+      [JSON.stringify(currentData), searchText, recordId]
+    );
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: `Successfully marked donation completed for record #${recordId} on ${donationDate}!`,
+      donationDate
+    });
+  } catch (err) {
+    console.error('Mark donated error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to mark donation completed.' });
+  }
+});
+
+// GET ADMIN ANALYTICS
+app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
+  try {
+    const allRes = await pool.query('SELECT id, data FROM data_records');
+    const records = allRes.rows.map(r => r.data);
+
+    const totalRecords = records.length;
+    const byZone = {};
+    const byForona = {};
+    const byBloodGroup = {};
+    let eligibleCount = 0;
+    let donatedRecentlyCount = 0;
+
+    const now = new Date();
+
+    records.forEach(r => {
+      // Zone Breakdown
+      const zoneKey = Object.keys(r).find(k => /zone|മേഖല/i.test(k)) || 'Zone (മേഖല)';
+      const zoneVal = r[zoneKey] || 'Unassigned Zone';
+      byZone[zoneVal] = (byZone[zoneVal] || 0) + 1;
+
+      // Forona Breakdown
+      const foronaKey = Object.keys(r).find(k => /forona|ഫൊറോന/i.test(k)) || 'Forona (ഫൊറോന)';
+      const foronaVal = r[foronaKey] || 'Unassigned Forona';
+      byForona[foronaVal] = (byForona[foronaVal] || 0) + 1;
+
+      // Blood Group Breakdown
+      const bgKey = Object.keys(r).find(k => /blood|group|bg/i.test(k)) || 'Blood Group';
+      const bgVal = (r[bgKey] || 'Unknown').toString().trim();
+      byBloodGroup[bgVal] = (byBloodGroup[bgVal] || 0) + 1;
+
+      // Age & Donation Eligibility
+      const ageKey = Object.keys(r).find(k => /age|വയസ്സ്/i.test(k));
+      const ageNum = ageKey && r[ageKey] ? parseInt(r[ageKey], 10) : 25;
+      const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
+
+      let isDonatedRecently = false;
+      const donationDateStr = r['Last Donation Date'];
+      if (donationDateStr) {
+        const dDate = new Date(donationDateStr);
+        const diffDays = (now - dDate) / (1000 * 60 * 60 * 24);
+        if (diffDays < 90) {
+          isDonatedRecently = true;
+          donatedRecentlyCount++;
+        }
+      }
+
+      if (isAgeEligible && !isDonatedRecently) {
+        eligibleCount++;
+      }
+    });
+
+    return res.json({
+      success: true,
+      totalRecords,
+      eligibleCount,
+      donatedRecentlyCount,
+      byZone,
+      byForona,
+      byBloodGroup
+    });
+  } catch (err) {
+    console.error('Fetch analytics error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to generate analytics.' });
+  }
+});
+
 // CREATE Single Record
 app.post('/api/admin/records', requireAdmin, async (req, res) => {
   try {
@@ -333,7 +440,7 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// BULK DELETE Multiple Selected Records
+// BULK DELETE
 app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -513,7 +620,7 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
-// PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Zone/Forona/Unit/BloodGroup matching)
+// PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Cooling Period of 90 days)
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -544,7 +651,7 @@ app.get('/api/search', async (req, res) => {
       paramIndex++;
     }
 
-    // 2. Column Filters (Zone, Forona, Unit, Blood Group)
+    // 2. Column Filters (Zone, Forona, Blood Group)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
@@ -570,7 +677,7 @@ app.get('/api/search', async (req, res) => {
       });
     }
 
-    // 3. STRICT AGE RESTRICTION: Exclude anyone under 18 or above 55
+    // 3. STRICT AGE RESTRICTION (18 to 55)
     const ageKeys = existingColumns.filter(c => /age|വയസ്സ്/i.test(c));
     if (ageKeys.length > 0) {
       const ageOrConds = ageKeys.map(k => {
@@ -600,12 +707,25 @@ app.get('/api/search', async (req, res) => {
     const dataValues = [...values, limit, offset];
     const dataRes = await pool.query(dataSql, dataValues);
 
+    const now = new Date();
+
     const validRecords = dataRes.rows.map(r => ({ id: r.id, ...r.data })).filter(rec => {
+      // Age check
       const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
-      if (!ageKey || rec[ageKey] === undefined || rec[ageKey] === null || rec[ageKey] === '') return true;
-      const numAge = parseInt(rec[ageKey], 10);
-      if (isNaN(numAge)) return true;
-      return numAge >= 18 && numAge <= 55;
+      if (ageKey && rec[ageKey] !== undefined && rec[ageKey] !== null && rec[ageKey] !== '') {
+        const numAge = parseInt(rec[ageKey], 10);
+        if (!isNaN(numAge) && (numAge < 18 || numAge > 55)) return false;
+      }
+
+      // Cooling period check (90 days since donation)
+      const lastDonated = rec['Last Donation Date'];
+      if (lastDonated) {
+        const dDate = new Date(lastDonated);
+        const diffDays = (now - dDate) / (1000 * 60 * 60 * 24);
+        if (diffDays < 90) return false;
+      }
+
+      return true;
     });
 
     const totalPages = Math.ceil(totalRecords / limit) || 1;
