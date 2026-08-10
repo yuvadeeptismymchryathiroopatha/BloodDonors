@@ -87,7 +87,7 @@ class ProfileApp {
       sub: `google-${Date.now()}`,
       email: cleanEmail,
       name: namePart,
-      picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(namePart)}&background=d4a017&color=fff`
+      picture: `https://ui-avatars.com/api/?name=${encodeURIComponent(namePart)}&background=dc2626&color=fff`
     };
 
     const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }));
@@ -261,7 +261,7 @@ class ProfileApp {
     if (nameEl) nameEl.textContent = user.name || 'Donor User';
     if (emailEl) emailEl.textContent = user.email || '';
     if (avatarEl) {
-      avatarEl.src = user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=d4a017&color=fff`;
+      avatarEl.src = user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=dc2626&color=fff`;
     }
 
     // Populate Fields
