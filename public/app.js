@@ -21,7 +21,7 @@ class BloodDonorApp {
     this.zoneForaneMap = {
       'kottayam': ['Kottayam', 'Kudamaloor', 'Athirampuzha', 'Manimala', 'Nedumkunnam'],
       'changanacherry': ['Changanacherry', 'Thuruthy', 'Thrickodithanam', 'Thrikodithanam', 'Kurumpanadom'],
-      'alappuzha': ['Alappuzha', 'Alapuzha', 'Muhamma'],
+      'alappuzha': ['Alappuzha', 'Muhamma'],
       'kuttanad': ['Edathua', 'Pulinkunnoo', 'Champakulam'],
       'kollam': ['Kollam-Ayoor'],
       'trivandrum': ['Trivandrum', 'Thiruvananthapuram', 'Amboori'],
