@@ -1132,7 +1132,7 @@ app.get('/api/search', async (req, res) => {
 
     return res.json({
       success: true,
-      records: validRecords,
+      records: records,
       pagination: {
         page,
         limit,
