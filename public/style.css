@@ -470,6 +470,24 @@ body {
   flex: 1;
 }
 
+.donor-card-faded {
+  opacity: 0.58;
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  filter: grayscale(0.15);
+}
+
+.donor-card-faded:hover {
+  opacity: 0.88;
+  filter: grayscale(0);
+}
+
+.status-ineligible {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border: 1px solid var(--primary-border);
+}
+
 .empty-state {
   grid-column: 1 / -1;
   text-align: center;

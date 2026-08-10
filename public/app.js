@@ -389,7 +389,8 @@ class BloodDonorApp {
 
   createDonorCard(donor) {
     const card = document.createElement('div');
-    card.className = 'donor-card';
+    const isAvailable = donor._isAvailable !== false;
+    card.className = isAvailable ? 'donor-card' : 'donor-card donor-card-faded';
 
     const bloodGroupKey = Object.keys(donor).find(k => /blood|group|bg/i.test(k));
     const bloodGroup = (bloodGroupKey && donor[bloodGroupKey]) ? donor[bloodGroupKey] : 'O+';
@@ -400,17 +401,8 @@ class BloodDonorApp {
     const phoneKey = Object.keys(donor).find(k => /phone|contact|മൊബൈൽ/i.test(k));
     const phone = (phoneKey && donor[phoneKey]) ? donor[phoneKey] : '';
 
-    const zoneKey = Object.keys(donor).find(k => /zone|മേഖല/i.test(k));
-    const zone = (zoneKey && donor[zoneKey]) ? donor[zoneKey] : '';
-
-    const foraneKey = Object.keys(donor).find(k => /forona|forane|ഫൊറോന/i.test(k));
-    const forane = (foraneKey && donor[foraneKey]) ? donor[foraneKey] : '';
-
-    const ageKey = Object.keys(donor).find(k => /age|വയസ്സ്/i.test(k));
-    const age = (ageKey && donor[ageKey]) ? donor[ageKey] : '';
-
     let fieldsHtml = '';
-    const ignoreKeys = new Set(['id', nameKey, bloodGroupKey, phoneKey]);
+    const ignoreKeys = new Set(['id', nameKey, bloodGroupKey, phoneKey, '_isAvailable', '_statusBadge', '_coolingDaysLeft']);
 
     Object.keys(donor).forEach(k => {
       if (ignoreKeys.has(k)) return;
@@ -429,24 +421,30 @@ class BloodDonorApp {
     let waPhone = cleanPhone.replace(/^\+/, '');
     if (waPhone.length === 10) waPhone = '91' + waPhone;
 
+    const statusBadgeText = donor._statusBadge || (isAvailable ? '🟢 Available to Donate' : '⚠️ Non-Active');
+    const badgeClass = isAvailable ? 'status-active' : (donor._coolingDaysLeft > 0 ? 'status-cooling' : 'status-ineligible');
+
     card.innerHTML = `
       <div>
         <div class="donor-card-top">
-          <h3 class="donor-name">${this.escapeHtml(name)}</h3>
+          <div>
+            <h3 class="donor-name">${this.escapeHtml(name)}</h3>
+            <span class="profile-status-badge ${badgeClass}" style="margin-top:0.25rem; font-size:0.75rem;">${this.escapeHtml(statusBadgeText)}</span>
+          </div>
           <span class="donor-blood-badge">${this.escapeHtml(bloodGroup)}</span>
         </div>
         
-        <div class="donor-fields">
+        <div class="donor-fields" style="margin-top:0.5rem;">
           ${fieldsHtml}
         </div>
       </div>
 
       <div class="donor-card-actions">
         ${cleanPhone ? `
-          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm">
+          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm ${!isAvailable ? 'btn-faded' : ''}">
             📞 Call
           </a>
-          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm ${!isAvailable ? 'btn-faded' : ''}">
             💬 WhatsApp
           </a>
         ` : `

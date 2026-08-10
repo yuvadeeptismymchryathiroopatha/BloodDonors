@@ -1080,26 +1080,6 @@ app.get('/api/search', async (req, res) => {
       });
     }
 
-    // 3. STRICT AGE RESTRICTION (18 to 55)
-    const ageKeys = existingColumns.filter(c => /age|വയസ്സ്/i.test(c));
-    if (ageKeys.length > 0) {
-      const ageOrConds = ageKeys.map(k => {
-        const p1 = paramIndex;
-        paramIndex++;
-        values.push(k);
-        return `(
-          (data ->> $${p1}) IS NULL OR 
-          (data ->> $${p1}) = '' OR 
-          NOT ((data ->> $${p1}) ~ '^[0-9]+$') OR 
-          (
-            ((data ->> $${p1})::int >= 18) AND 
-            ((data ->> $${p1})::int <= 55)
-          )
-        )`;
-      });
-      whereConditions.push(`(${ageOrConds.join(' AND ')})`);
-    }
-
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const countSql = `SELECT COUNT(*) FROM data_records ${whereClause}`;
@@ -1112,23 +1092,40 @@ app.get('/api/search', async (req, res) => {
 
     const now = new Date();
 
-    const validRecords = dataRes.rows.map(r => ({ id: r.id, ...r.data })).filter(rec => {
-      // Age check
-      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
-      if (ageKey && rec[ageKey] !== undefined && rec[ageKey] !== null && rec[ageKey] !== '') {
-        const numAge = parseInt(rec[ageKey], 10);
-        if (!isNaN(numAge) && (numAge < 18 || numAge > 55)) return false;
-      }
+    const records = dataRes.rows.map(r => {
+      const rec = { id: r.id, ...r.data };
 
-      // Cooling period check (90 days since donation)
+      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
+      const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
+      const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
+
+      let isCoolingPeriod = false;
+      let coolingDaysLeft = 0;
       const lastDonated = rec['Last Donation Date'];
       if (lastDonated) {
         const dDate = new Date(lastDonated);
-        const diffDays = (now - dDate) / (1000 * 60 * 60 * 24);
-        if (diffDays < 90) return false;
+        const diffDays = Math.floor((now - dDate) / (1000 * 60 * 60 * 24));
+        if (diffDays < 90) {
+          isCoolingPeriod = true;
+          coolingDaysLeft = 90 - diffDays;
+        }
       }
 
-      return true;
+      let isAvailable = isAgeEligible && !isCoolingPeriod;
+      let statusBadge = '🟢 Available to Donate';
+
+      if (!isAgeEligible) {
+        statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
+      } else if (isCoolingPeriod) {
+        statusBadge = `🟡 In Cooling Period (${coolingDaysLeft} Days Left)`;
+      }
+
+      return {
+        ...rec,
+        _isAvailable: isAvailable,
+        _statusBadge: statusBadge,
+        _coolingDaysLeft: coolingDaysLeft
+      };
     });
 
     const totalPages = Math.ceil(totalRecords / limit) || 1;
