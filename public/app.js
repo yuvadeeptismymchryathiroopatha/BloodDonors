@@ -25,7 +25,7 @@ class BloodDonorApp {
       'kuttanad': ['Edathua', 'Pulincunno', 'Pulinkunnoo', 'Champakulam'],
       'kollam': ['Kollam-Ayoor', 'Kollam', 'Kollam-ayoor'],
       'trivandrum': ['Trivandrum', 'Thiruvananthapuram', 'Amboori'],
-      'chenganoor': ['Chenganoor', 'Chengannur']
+      'chenganoor': ['Chenganoor']
     };
 
     this.init();
