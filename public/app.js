@@ -1,6 +1,6 @@
 /**
  * Bloodrupatha - Yuva Blood Forum App Script
- * Supports filtering by Zone (മേഖല), Blood Group (രക്തഗ്രൂപ്പ്), and Forane (ഫൊറോന).
+ * Supports filtering by Zone, Blood Group, and Forane.
  * Enforces Age restriction (18 to 55) and Cooling Period (90 days).
  */
 
@@ -118,24 +118,24 @@ class BloodDonorApp {
     const columns = this.schema.columns || [];
 
     // Locate Filter Keys
-    const zoneKey = columns.find(c => /zone|മേഖല/i.test(c)) || 'Zone (മേഖല)';
+    const zoneKey = columns.find(c => /zone/i.test(c)) || 'Zone';
     const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
-    const foronaKey = columns.find(c => /forona|forane|ഫൊറോന/i.test(c)) || 'Forane (ഫൊറോന)';
+    const foronaKey = columns.find(c => /forona|forane/i.test(c)) || 'Forane';
 
     this.zoneKey = zoneKey;
     this.foronaKey = foronaKey;
 
-    // 1. Zone Filter (മേഖല)
-    const zoneOptions = filterableOpts[zoneKey] || this.extractOptionsByRegex(/zone|മേഖല/i);
+    // 1. Zone Filter
+    const zoneOptions = filterableOpts[zoneKey] || this.extractOptionsByRegex(/zone/i);
     const zoneSelect = this.createSelectFilterGroup({
       container,
       columnKey: zoneKey,
-      label: '🗺️ Zone (മേഖല)',
-      placeholder: 'All Zones (എല്ലാ മേഖലയും)',
+      label: '🗺️ Zone',
+      placeholder: 'All Zones',
       options: zoneOptions
     });
 
-    // 2. Blood Group Filter (രക്തഗ്രൂപ്പ്)
+    // 2. Blood Group Filter
     const defaultBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const uploadedBloodGroups = filterableOpts[bloodGroupKey] || [];
     const combinedBloodGroups = Array.from(new Set([...defaultBloodGroups, ...uploadedBloodGroups])).sort();
@@ -143,26 +143,26 @@ class BloodDonorApp {
     this.createSelectFilterGroup({
       container,
       columnKey: bloodGroupKey,
-      label: '🩸 Blood Group (രക്തഗ്രൂപ്പ്)',
+      label: '🩸 Blood Group',
       placeholder: 'All Blood Groups',
       options: combinedBloodGroups
     });
 
-    // 3. Forane Filter (ഫൊറോന)
+    // 3. Forane Filter
     const defaultForanes = [
       'Kottayam', 'Athirampuzha', 'Kudamaloor', 'Muhamma', 'Manimala', 
       'Nedumkunnam', 'Kurumpanadom', 'Thrickodithanam', 'Thuruthy', 'Changanacherry', 
       'Edathua', 'Pulinkunnoo', 'Champakulam', 'Chenganoor', 'Alappuzha', 
       'Kollam-Ayoor', 'Trivandrum', 'Amboori'
     ];
-    const uploadedForanes = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|forane|ഫൊറോന/i);
+    const uploadedForanes = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|forane/i);
     const combinedForanes = Array.from(new Set([...defaultForanes, ...uploadedForanes])).sort();
 
     const foraneSelect = this.createSelectFilterGroup({
       container,
       columnKey: foronaKey,
-      label: '🏛️ Forane (ഫൊറോന)',
-      placeholder: 'All Foranes (എല്ലാ ഫൊറോനയും)',
+      label: '🏛️ Forane',
+      placeholder: 'All Foranes',
       options: combinedForanes
     });
 
@@ -204,7 +204,7 @@ class BloodDonorApp {
     foraneSelectEl.innerHTML = '';
     const defaultOpt = document.createElement('option');
     defaultOpt.value = '';
-    defaultOpt.textContent = selectedZoneVal ? `All Foranes in ${selectedZoneVal}` : 'All Foranes (എല്ലാ ഫൊറോനയും)';
+    defaultOpt.textContent = selectedZoneVal ? `All Foranes in ${selectedZoneVal}` : 'All Foranes';
     foraneSelectEl.appendChild(defaultOpt);
 
     allowedForanes.forEach(val => {
@@ -395,10 +395,10 @@ class BloodDonorApp {
     const bloodGroupKey = Object.keys(donor).find(k => /blood|group|bg/i.test(k));
     const bloodGroup = (bloodGroupKey && donor[bloodGroupKey]) ? donor[bloodGroupKey] : 'O+';
 
-    const nameKey = Object.keys(donor).find(k => /name|പേര്/i.test(k));
+    const nameKey = Object.keys(donor).find(k => /name/i.test(k));
     const name = (nameKey && donor[nameKey]) ? donor[nameKey] : 'Blood Donor';
 
-    const phoneKey = Object.keys(donor).find(k => /phone|contact|മൊബൈൽ/i.test(k));
+    const phoneKey = Object.keys(donor).find(k => /phone|contact/i.test(k));
     const phone = (phoneKey && donor[phoneKey]) ? donor[phoneKey] : '';
 
     let fieldsHtml = '';

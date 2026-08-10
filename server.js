@@ -120,8 +120,8 @@ async function syncUserProfileToDataRecords(userId) {
       "Name": user.name,
       "Age": user.age ? user.age.toString() : "25",
       "Phone": user.phone,
-      "Zone (മേഖല)": user.zone || "Changanacherry Zone",
-      "Forane (ഫൊറോന)": user.forona || "Changanacherry",
+      "Zone": user.zone || "Changanacherry Zone",
+      "Forane": user.forona || "Changanacherry",
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
       "Last Donation Date": user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : ""
@@ -566,7 +566,7 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     let records = allRes.rows.map(row => {
       const rec = row.data || {};
       
-      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
+      const ageKey = Object.keys(rec).find(k => /age/i.test(k));
       const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
 
@@ -695,11 +695,11 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const now = new Date();
 
     records.forEach(r => {
-      const zoneKey = Object.keys(r).find(k => /zone|മേഖല/i.test(k)) || 'Zone (മേഖല)';
+      const zoneKey = Object.keys(r).find(k => /zone/i.test(k)) || 'Zone';
       const zoneVal = r[zoneKey] || 'Unassigned Zone';
       byZone[zoneVal] = (byZone[zoneVal] || 0) + 1;
 
-      const foronaKey = Object.keys(r).find(k => /forona|forane|ഫൊറോന|unit/i.test(k)) || 'Forane (ഫൊറോന)';
+      const foronaKey = Object.keys(r).find(k => /forona|forane|unit/i.test(k)) || 'Forane';
       const foronaVal = (r[foronaKey] || 'Unassigned Forane').toString().trim();
       byForona[foronaVal] = (byForona[foronaVal] || 0) + 1;
 
@@ -707,7 +707,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       const bgVal = (r[bgKey] || 'Unknown').toString().trim();
       byBloodGroup[bgVal] = (byBloodGroup[bgVal] || 0) + 1;
 
-      const ageKey = Object.keys(r).find(k => /age|വയസ്സ്/i.test(k));
+      const ageKey = Object.keys(r).find(k => /age/i.test(k));
       const ageNum = ageKey && r[ageKey] ? parseInt(r[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
 
@@ -1095,7 +1095,7 @@ app.get('/api/search', async (req, res) => {
     const records = dataRes.rows.map(r => {
       const rec = { id: r.id, ...r.data };
 
-      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
+      const ageKey = Object.keys(rec).find(k => /age/i.test(k));
       const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
 
@@ -1152,8 +1152,8 @@ function getMatchingColumnKeys(filterName, columns) {
   const exact = columns.filter(c => c.toLowerCase().trim() === norm);
   if (exact.length > 0) return exact;
 
-  if (norm.includes('zone') || norm.includes('മേഖല')) {
-    const matches = columns.filter(c => /zone|മേഖല/i.test(c));
+  if (norm.includes('zone')) {
+    const matches = columns.filter(c => /zone/i.test(c));
     if (matches.length > 0) return matches;
   }
 
@@ -1162,13 +1162,13 @@ function getMatchingColumnKeys(filterName, columns) {
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('forona') || norm.includes('forane') || norm.includes('ഫൊറോന') || norm.includes('unit')) {
-    const matches = columns.filter(c => /forona|forane|ഫൊറോന|unit/i.test(c));
+  if (norm.includes('forona') || norm.includes('forane') || norm.includes('unit')) {
+    const matches = columns.filter(c => /forona|forane|unit/i.test(c));
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('unit') || norm.includes('യൂണിറ്റ്')) {
-    const matches = columns.filter(c => /unit|യൂണിറ്റ്/i.test(c));
+  if (norm.includes('unit')) {
+    const matches = columns.filter(c => /unit/i.test(c));
     if (matches.length > 0) return matches;
   }
 

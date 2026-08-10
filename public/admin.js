@@ -523,7 +523,7 @@ class AdminApp {
     idInput.value = '';
     title.textContent = 'Add New Record';
 
-    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'Zone (മേഖല)', 'Forona (ഫൊറോന)', 'Phone', 'Age', 'Availability'];
+    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'Zone', 'Forane', 'Phone', 'Age', 'Availability'];
 
     fieldsContainer.innerHTML = '';
     columns.forEach(col => {

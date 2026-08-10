@@ -7,7 +7,7 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
 ## Features
 
 - **Ultra-Fast & Lightweight**: Pure Vanilla HTML5/CSS3/JS frontend under 40 KB asset footprint for instant loading.
-- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, and **Forane (ഫൊറോന)**.
+- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone**, **Blood Group**, and **Forane**.
 - **Eligible Age Restriction**: Automatically filters public searches to show only eligible donors (**Ages 18 to 55**).
 - **Donation Tracking & Cooling Period**: Option to mark donation completion in Admin portal, enforcing a 90-day cooling period.
 - **Admin Analytics Breakdown**: Real-time stats and visual progress breakdowns by **Zone**, **Forane**, and **Blood Group**.
