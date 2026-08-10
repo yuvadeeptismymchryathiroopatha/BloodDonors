@@ -5,7 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Blood Donors & Data Portal</title>
   <meta name="description" content="Ultra-fast, lightweight public data search and blood donor directory portal.">
-  <!-- Google Fonts: Inter & Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
@@ -70,7 +69,7 @@
 
         <!-- Dynamic Dropdown Filters -->
         <div id="filterControlsContainer" class="filters-grid">
-          <!-- Dynamic select dropdowns will be rendered here by JS -->
+          <!-- Dynamic select dropdowns rendered by JS -->
         </div>
 
         <div class="filter-actions hidden" id="filterActions">
@@ -118,7 +117,7 @@
 
   <!-- Admin Modal / Portal -->
   <div id="adminModal" class="modal-overlay hidden">
-    <div class="modal-card">
+    <div class="modal-card modal-large">
       <div class="modal-header">
         <div class="modal-title">
           <span class="modal-title-icon">🔐</span>
@@ -131,7 +130,7 @@
 
         <!-- LOGIN FORM (When NOT Logged In) -->
         <div id="loginFormContainer" class="admin-view">
-          <p class="form-desc">Please log in with your administrator credentials to upload CSV data or change settings.</p>
+          <p class="form-desc">Please log in with your administrator credentials to manage records, upload CSV data, or change settings.</p>
           <form id="loginForm" onsubmit="app.handleLogin(event)">
             <div class="form-group">
               <label for="loginUsername">Admin Username</label>
@@ -148,18 +147,52 @@
 
         <!-- ADMIN DASHBOARD (When Logged In) -->
         <div id="adminDashboardContainer" class="admin-view hidden">
-          <!-- Admin Tabs -->
+          <!-- Admin Navigation Tabs -->
           <div class="tab-buttons">
-            <button class="tab-btn active" id="tabUploadBtn" onclick="app.switchAdminTab('upload')">
+            <button class="tab-btn active" id="tabTableBtn" onclick="app.switchAdminTab('table')">
+              📊 Data Table & Edit
+            </button>
+            <button class="tab-btn" id="tabUploadBtn" onclick="app.switchAdminTab('upload')">
               📤 Upload CSV
             </button>
             <button class="tab-btn" id="tabSettingsBtn" onclick="app.switchAdminTab('settings')">
-              🔑 Change Credentials
+              🔑 Credentials
             </button>
           </div>
 
-          <!-- TAB 1: CSV UPLOAD -->
-          <div id="tabUpload" class="tab-content">
+          <!-- TAB 1: DATA TABLE & EDIT -->
+          <div id="tabTable" class="tab-content">
+            <div class="admin-table-toolbar">
+              <div class="admin-search-input">
+                <input type="text" id="adminSearchInput" placeholder="Filter records in table..." onkeyup="app.filterAdminTable()">
+              </div>
+              <button class="btn btn-primary btn-sm" onclick="app.openAddRecordModal()">
+                ➕ Add New Record
+              </button>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-data-table">
+                <thead>
+                  <tr id="adminTableHeadRow">
+                    <!-- Dynamic Column Headers -->
+                  </tr>
+                </thead>
+                <tbody id="adminTableBody">
+                  <!-- Dynamic Data Rows -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="adminTablePagination" class="pagination-wrapper">
+              <button id="adminPrevBtn" class="btn btn-outline btn-sm" onclick="app.changeAdminPage(-1)">&larr; Prev</button>
+              <span id="adminPageIndicator" class="page-indicator">Page 1 of 1</span>
+              <button id="adminNextBtn" class="btn btn-outline btn-sm" onclick="app.changeAdminPage(1)">Next &rarr;</button>
+            </div>
+          </div>
+
+          <!-- TAB 2: CSV UPLOAD -->
+          <div id="tabUpload" class="tab-content hidden">
             <div class="upload-zone" id="dropZone">
               <div class="upload-icon">📁</div>
               <p class="upload-title">Drag & Drop CSV file here</p>
@@ -194,7 +227,7 @@
             </div>
           </div>
 
-          <!-- TAB 2: CHANGE CREDENTIALS -->
+          <!-- TAB 3: CHANGE CREDENTIALS -->
           <div id="tabSettings" class="tab-content hidden">
             <p class="form-desc">Update your administrator username and password securely.</p>
             <form id="changeCredsForm" onsubmit="app.handleChangeCredentials(event)">
@@ -230,6 +263,32 @@
           </div>
         </div>
 
+      </div>
+    </div>
+  </div>
+
+  <!-- ADD / EDIT RECORD MODAL -->
+  <div id="editRecordModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-title-icon">✏️</span>
+          <h3 id="editModalTitle">Edit Record</h3>
+        </div>
+        <button class="modal-close" onclick="app.closeEditRecordModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="recordForm" onsubmit="app.saveRecordForm(event)">
+          <input type="hidden" id="editRecordId" value="">
+          <div id="dynamicFormFields">
+            <!-- Dynamic Form Inputs -->
+          </div>
+          <div id="editRecordAlert" class="alert hidden"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline btn-sm" onclick="app.closeEditRecordModal()">Cancel</button>
+            <button type="submit" id="saveRecordBtn" class="btn btn-primary btn-sm">Save Record</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>

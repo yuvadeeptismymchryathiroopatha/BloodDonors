@@ -1,5 +1,5 @@
 /**
- * Bloodrupatha - Lightweight Search & Data Portal App Logic
+ * Bloodrupatha - Lightweight Search & Admin Portal App Logic
  */
 
 class App {
@@ -13,9 +13,14 @@ class App {
     this.searchQuery = '';
     this.currentPage = 1;
     this.limit = 12;
+
+    // Admin State
     this.isAdminLoggedIn = false;
     this.adminUsername = '';
     this.selectedCSVFile = null;
+    this.adminCurrentPage = 1;
+    this.adminSearchQuery = '';
+    this.adminRecordsMap = {};
 
     this.init();
   }
@@ -129,12 +134,10 @@ class App {
     const filterableOpts = this.schema.filterableOptions || {};
     const columns = this.schema.columns || [];
 
-    // Prominent Filter Target Keys: Blood Group, District, Unit / Forona
     const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
     const districtKey = columns.find(c => /district|dist/i.test(c)) || 'District';
     const foronaKey = columns.find(c => /unit|forona|ഫൊറോന/i.test(c)) || 'Unit / Forona (ഫൊറോന)';
 
-    // Standard list of blood groups if dataset hasn't uploaded all
     const defaultBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const uploadedBloodGroups = filterableOpts[bloodGroupKey] || [];
     const combinedBloodGroups = Array.from(new Set([...defaultBloodGroups, ...uploadedBloodGroups])).sort();
@@ -284,7 +287,7 @@ class App {
     }
   }
 
-  // --- DATA SEARCH & RENDERING ---
+  // --- PUBLIC DATA SEARCH & RENDERING ---
 
   async performSearch() {
     const container = document.getElementById('resultsContainer');
@@ -454,7 +457,7 @@ class App {
     this.performSearch();
   }
 
-  // --- ADMIN AUTH & MODAL ---
+  // --- ADMIN AUTH & DASHBOARD TABS ---
 
   async checkAdminStatus() {
     try {
@@ -465,6 +468,7 @@ class App {
         this.isAdminLoggedIn = true;
         this.adminUsername = data.username;
         this.updateAdminUI(true);
+        this.loadAdminTable();
       } else {
         this.isAdminLoggedIn = false;
         this.updateAdminUI(false);
@@ -488,7 +492,7 @@ class App {
       if (adminBtnText) adminBtnText.textContent = 'Admin Settings';
       if (loginView) loginView.classList.add('hidden');
       if (dashboardView) dashboardView.classList.remove('hidden');
-      if (modalHeaderTitle) modalHeaderTitle.textContent = `Admin Panel (${this.adminUsername})`;
+      if (modalHeaderTitle) modalHeaderTitle.textContent = `Admin Dashboard (${this.adminUsername})`;
     } else {
       if (adminBadge) adminBadge.classList.add('hidden');
       if (adminBtnText) adminBtnText.textContent = 'Admin Portal';
@@ -502,6 +506,9 @@ class App {
     const modal = document.getElementById('adminModal');
     if (modal) {
       modal.classList.toggle('hidden');
+      if (!modal.classList.contains('hidden') && this.isAdminLoggedIn) {
+        this.loadAdminTable();
+      }
     }
   }
 
@@ -513,21 +520,27 @@ class App {
   }
 
   switchAdminTab(tabName) {
+    const tableBtn = document.getElementById('tabTableBtn');
     const uploadBtn = document.getElementById('tabUploadBtn');
     const settingsBtn = document.getElementById('tabSettingsBtn');
+
+    const tableTab = document.getElementById('tabTable');
     const uploadTab = document.getElementById('tabUpload');
     const settingsTab = document.getElementById('tabSettings');
 
-    if (tabName === 'upload') {
-      uploadBtn.classList.add('active');
-      settingsBtn.classList.remove('active');
-      uploadTab.classList.remove('hidden');
-      settingsTab.classList.add('hidden');
+    [tableBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
+    [tableTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
+
+    if (tabName === 'table') {
+      tableBtn?.classList.add('active');
+      tableTab?.classList.remove('hidden');
+      this.loadAdminTable();
+    } else if (tabName === 'upload') {
+      uploadBtn?.classList.add('active');
+      uploadTab?.classList.remove('hidden');
     } else {
-      settingsBtn.classList.add('active');
-      uploadBtn.classList.remove('active');
-      settingsTab.classList.remove('hidden');
-      uploadTab.classList.add('hidden');
+      settingsBtn?.classList.add('active');
+      settingsTab?.classList.remove('hidden');
     }
   }
 
@@ -560,6 +573,7 @@ class App {
         this.updateAdminUI(true);
         this.showToast('Logged in successfully!');
         passwordInput.value = '';
+        this.loadAdminTable();
       } else {
         errorEl.textContent = data.error || 'Invalid credentials.';
         errorEl.classList.remove('hidden');
@@ -572,6 +586,284 @@ class App {
       submitBtn.textContent = 'Log In';
     }
   }
+
+  // --- ADMIN DATA TABLE (SEE ALL DATA, EDIT, DELETE, ADD) ---
+
+  async loadAdminTable() {
+    const tableHeadRow = document.getElementById('adminTableHeadRow');
+    const tableBody = document.getElementById('adminTableBody');
+    const indicator = document.getElementById('adminPageIndicator');
+    const prevBtn = document.getElementById('adminPrevBtn');
+    const nextBtn = document.getElementById('adminNextBtn');
+
+    if (!tableHeadRow || !tableBody) return;
+
+    tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:2rem;">⏳ Loading database records...</td></tr>`;
+
+    try {
+      const queryParams = new URLSearchParams({
+        page: this.adminCurrentPage,
+        limit: 15,
+        q: this.adminSearchQuery
+      });
+
+      const res = await fetch(`/api/admin/records?${queryParams.toString()}`);
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      const records = data.records || [];
+      const columns = this.schema.columns || (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
+
+      // 1. Build Header
+      let headHtml = `<th>#</th>`;
+      columns.forEach(col => {
+        headHtml += `<th>${this.escapeHtml(col)}</th>`;
+      });
+      headHtml += `<th style="text-align:right;">Actions</th>`;
+      tableHeadRow.innerHTML = headHtml;
+
+      // 2. Build Rows
+      if (records.length === 0) {
+        tableBody.innerHTML = `<tr><td colspan="${columns.length + 2}" style="text-align:center; padding:2rem; color:var(--text-muted);">No data records found in database. Upload a CSV file or click "Add New Record".</td></tr>`;
+        if (indicator) indicator.textContent = 'Page 1 of 1';
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        return;
+      }
+
+      tableBody.innerHTML = '';
+      this.adminRecordsMap = {};
+
+      records.forEach((row, idx) => {
+        this.adminRecordsMap[row.id] = row.data;
+        const tr = document.createElement('tr');
+
+        let rowHtml = `<td>${(this.adminCurrentPage - 1) * 15 + idx + 1}</td>`;
+        columns.forEach(col => {
+          const val = row.data[col] !== undefined && row.data[col] !== null ? row.data[col] : '-';
+          rowHtml += `<td>${this.escapeHtml(val.toString())}</td>`;
+        });
+
+        rowHtml += `
+          <td style="text-align:right;">
+            <div class="action-btns" style="justify-content:flex-end;">
+              <button class="btn-icon" title="Edit Record" onclick="app.openEditRecordModal(${row.id})">✏️ Edit</button>
+              <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="app.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
+            </div>
+          </td>
+        `;
+
+        tr.innerHTML = rowHtml;
+        tableBody.appendChild(tr);
+      });
+
+      // Pagination
+      const pag = data.pagination;
+      if (indicator) indicator.textContent = `Page ${pag.page} of ${pag.totalPages} (${pag.totalRecords} records)`;
+      if (prevBtn) prevBtn.disabled = pag.page <= 1;
+      if (nextBtn) nextBtn.disabled = pag.page >= pag.totalPages;
+
+    } catch (err) {
+      console.error('Failed to load admin table:', err);
+      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--danger);">Failed to load admin data table.</td></tr>`;
+    }
+  }
+
+  filterAdminTable() {
+    const input = document.getElementById('adminSearchInput');
+    this.adminSearchQuery = input ? input.value : '';
+    this.adminCurrentPage = 1;
+    this.loadAdminTable();
+  }
+
+  changeAdminPage(delta) {
+    this.adminCurrentPage += delta;
+    this.loadAdminTable();
+  }
+
+  // --- ADD / EDIT RECORD MODAL & ACTIONS ---
+
+  openAddRecordModal() {
+    const modal = document.getElementById('editRecordModal');
+    const title = document.getElementById('editModalTitle');
+    const idInput = document.getElementById('editRecordId');
+    const fieldsContainer = document.getElementById('dynamicFormFields');
+    const alertEl = document.getElementById('editRecordAlert');
+
+    alertEl.classList.add('hidden');
+    idInput.value = '';
+    title.textContent = 'Add New Record';
+
+    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'District', 'Unit / Forona (ഫൊറോന)', 'Location', 'Phone', 'Availability'];
+
+    fieldsContainer.innerHTML = '';
+    columns.forEach(col => {
+      const group = document.createElement('div');
+      group.className = 'form-group';
+
+      const label = document.createElement('label');
+      label.textContent = col;
+
+      let input;
+      // Predefined Blood Group dropdown if column is blood group
+      if (/blood|group|bg/i.test(col)) {
+        input = document.createElement('select');
+        const defaultOpts = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        defaultOpts.forEach(bg => {
+          const opt = document.createElement('option');
+          opt.value = bg;
+          opt.textContent = bg || `-- Select ${col} --`;
+          input.appendChild(opt);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `Enter ${col}`;
+      }
+
+      input.name = col;
+      group.appendChild(label);
+      group.appendChild(input);
+      fieldsContainer.appendChild(group);
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  openEditRecordModal(id) {
+    const recordData = this.adminRecordsMap[id];
+    if (!recordData) return;
+
+    const modal = document.getElementById('editRecordModal');
+    const title = document.getElementById('editModalTitle');
+    const idInput = document.getElementById('editRecordId');
+    const fieldsContainer = document.getElementById('dynamicFormFields');
+    const alertEl = document.getElementById('editRecordAlert');
+
+    alertEl.classList.add('hidden');
+    idInput.value = id;
+    title.textContent = `Edit Record #${id}`;
+
+    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : Object.keys(recordData);
+
+    fieldsContainer.innerHTML = '';
+    columns.forEach(col => {
+      const group = document.createElement('div');
+      group.className = 'form-group';
+
+      const label = document.createElement('label');
+      label.textContent = col;
+
+      let input;
+      const currentVal = recordData[col] !== undefined && recordData[col] !== null ? recordData[col] : '';
+
+      if (/blood|group|bg/i.test(col)) {
+        input = document.createElement('select');
+        const defaultOpts = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        defaultOpts.forEach(bg => {
+          const opt = document.createElement('option');
+          opt.value = bg;
+          opt.textContent = bg || `-- Select ${col} --`;
+          if (bg === currentVal) opt.selected = true;
+          input.appendChild(opt);
+        });
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.value = currentVal;
+        input.placeholder = `Enter ${col}`;
+      }
+
+      input.name = col;
+      group.appendChild(label);
+      group.appendChild(input);
+      fieldsContainer.appendChild(group);
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  closeEditRecordModal() {
+    const modal = document.getElementById('editRecordModal');
+    if (modal) modal.classList.add('hidden');
+  }
+
+  async saveRecordForm(e) {
+    e.preventDefault();
+    const idInput = document.getElementById('editRecordId');
+    const recordId = idInput.value;
+    const fieldsContainer = document.getElementById('dynamicFormFields');
+    const alertEl = document.getElementById('editRecordAlert');
+    const saveBtn = document.getElementById('saveRecordBtn');
+
+    alertEl.classList.add('hidden');
+
+    const inputs = fieldsContainer.querySelectorAll('input, select');
+    const dataObj = {};
+    inputs.forEach(input => {
+      dataObj[input.name] = input.value.trim();
+    });
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving...';
+
+    try {
+      const url = recordId ? `/api/admin/records/${recordId}` : '/api/admin/records';
+      const method = recordId ? 'PUT' : 'POST';
+
+      const res = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data: dataObj })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        this.showToast(data.message);
+        this.closeEditRecordModal();
+
+        // Refresh Schema, Admin Table, and Public Search Grid
+        await this.loadSchema();
+        await this.loadAdminTable();
+        await this.performSearch();
+      } else {
+        alertEl.textContent = data.error || 'Failed to save record.';
+        alertEl.classList.remove('hidden');
+      }
+    } catch (err) {
+      alertEl.textContent = 'Server connection error.';
+      alertEl.classList.remove('hidden');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Record';
+    }
+  }
+
+  async confirmDeleteRecord(id) {
+    if (!confirm(`Are you sure you want to delete record #${id}?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/admin/records/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+
+      if (data.success) {
+        this.showToast('Record deleted successfully!');
+        await this.loadSchema();
+        await this.loadAdminTable();
+        await this.performSearch();
+      } else {
+        alert(data.error || 'Failed to delete record.');
+      }
+    } catch (err) {
+      alert('Error deleting record');
+    }
+  }
+
+  // --- CREDENTIAL CHANGE & LOGOUT ---
 
   async handleChangeCredentials(e) {
     e.preventDefault();
@@ -707,6 +999,7 @@ class App {
         this.selectedCSVFile = null;
 
         await this.loadSchema();
+        await this.loadAdminTable();
         await this.performSearch();
       } else {
         statusEl.className = 'alert alert-danger';
@@ -735,6 +1028,7 @@ class App {
       if (data.success) {
         this.showToast('Database records cleared!');
         await this.loadSchema();
+        await this.loadAdminTable();
         await this.performSearch();
       } else {
         alert(data.error || 'Failed to clear data');

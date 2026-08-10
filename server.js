@@ -55,6 +55,47 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ success: false, error: 'Unauthorized. Admin login required.' });
 }
 
+// Helper to recalculate dynamic schema & filterable options
+async function refreshSchemaMetadata(clientOrPool = pool) {
+  const allRecordsRes = await clientOrPool.query('SELECT data FROM data_records');
+  if (allRecordsRes.rows.length === 0) {
+    await clientOrPool.query('DELETE FROM data_schema');
+    return { columns: [], filterableOptions: {}, totalRecords: 0 };
+  }
+
+  const columnSet = new Set();
+  const columnValueCounts = {};
+
+  allRecordsRes.rows.forEach(row => {
+    const data = row.data || {};
+    Object.keys(data).forEach(col => {
+      columnSet.add(col);
+      const val = data[col] ? data[col].toString().trim() : '';
+      if (val) {
+        if (!columnValueCounts[col]) columnValueCounts[col] = new Set();
+        if (val.length <= 150) columnValueCounts[col].add(val);
+      }
+    });
+  });
+
+  const columns = Array.from(columnSet);
+  const filterableOptions = {};
+  columns.forEach(col => {
+    const uniqueSet = columnValueCounts[col];
+    if (uniqueSet && uniqueSet.size > 0 && uniqueSet.size <= 250) {
+      filterableOptions[col] = Array.from(uniqueSet).sort();
+    }
+  });
+
+  await clientOrPool.query('DELETE FROM data_schema');
+  await clientOrPool.query(
+    'INSERT INTO data_schema (columns, filterable_options, total_records) VALUES ($1, $2, $3)',
+    [JSON.stringify(columns), JSON.stringify(filterableOptions), allRecordsRes.rows.length]
+  );
+
+  return { columns, filterableOptions, totalRecords: allRecordsRes.rows.length };
+}
+
 // ----------------- ADMIN API ROUTES -----------------
 
 app.post('/api/admin/login', async (req, res) => {
@@ -159,6 +200,137 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Credential change error:', err);
     return res.status(500).json({ success: false, error: 'Failed to update admin credentials.' });
+  }
+});
+
+// GET Admin Records with Table View Pagination & Filter
+app.get('/api/admin/records', requireAdmin, async (req, res) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 15));
+    const offset = (page - 1) * limit;
+    const q = req.query.q ? req.query.q.trim() : '';
+
+    let whereClause = '';
+    const values = [];
+
+    if (q) {
+      whereClause = 'WHERE search_text ILIKE $1';
+      values.push(`%${q}%`);
+    }
+
+    const countRes = await pool.query(`SELECT COUNT(*) FROM data_records ${whereClause}`, values);
+    const totalRecords = parseInt(countRes.rows[0].count, 10);
+
+    const dataSql = `SELECT id, data, created_at FROM data_records ${whereClause} ORDER BY id DESC LIMIT $${values.length + 1} OFFSET $${values.length + 2}`;
+    const dataRes = await pool.query(dataSql, [...values, limit, offset]);
+
+    return res.json({
+      success: true,
+      records: dataRes.rows,
+      pagination: {
+        page,
+        limit,
+        totalRecords,
+        totalPages: Math.ceil(totalRecords / limit) || 1
+      }
+    });
+  } catch (err) {
+    console.error('Fetch admin records error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to fetch admin records.' });
+  }
+});
+
+// CREATE Single Record
+app.post('/api/admin/records', requireAdmin, async (req, res) => {
+  try {
+    const { data } = req.body;
+    if (!data || typeof data !== 'object' || Object.keys(data).length === 0) {
+      return res.status(400).json({ success: false, error: 'Record data object is required.' });
+    }
+
+    const searchTextParts = Object.values(data).map(v => (v || '').toString().trim()).filter(Boolean);
+    const searchText = searchTextParts.join(' | ');
+
+    const insertRes = await pool.query(
+      'INSERT INTO data_records (data, search_text) VALUES ($1, $2) RETURNING id, data, created_at',
+      [JSON.stringify(data), searchText]
+    );
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: 'Record created successfully!',
+      record: insertRes.rows[0]
+    });
+  } catch (err) {
+    console.error('Create record error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to create record.' });
+  }
+});
+
+// UPDATE Single Record
+app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
+  try {
+    const recordId = parseInt(req.params.id, 10);
+    const { data } = req.body;
+
+    if (isNaN(recordId)) {
+      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
+    }
+    if (!data || typeof data !== 'object') {
+      return res.status(400).json({ success: false, error: 'Valid record data is required.' });
+    }
+
+    const searchTextParts = Object.values(data).map(v => (v || '').toString().trim()).filter(Boolean);
+    const searchText = searchTextParts.join(' | ');
+
+    const updateRes = await pool.query(
+      'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3 RETURNING id, data, created_at',
+      [JSON.stringify(data), searchText, recordId]
+    );
+
+    if (updateRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Record not found.' });
+    }
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: 'Record updated successfully!',
+      record: updateRes.rows[0]
+    });
+  } catch (err) {
+    console.error('Update record error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update record.' });
+  }
+});
+
+// DELETE Single Record
+app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
+  try {
+    const recordId = parseInt(req.params.id, 10);
+    if (isNaN(recordId)) {
+      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
+    }
+
+    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = $1 RETURNING id', [recordId]);
+    if (deleteRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Record not found.' });
+    }
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: 'Record deleted successfully!',
+      id: recordId
+    });
+  } catch (err) {
+    console.error('Delete record error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to delete record.' });
   }
 });
 
@@ -311,7 +483,6 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
-// Flexible Search Endpoint supporting District, Unit / Forona (ഫൊറോന), Blood Group, and Custom Fields
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -328,7 +499,6 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    // Get current column headers stored in data_schema
     const schemaRes = await pool.query('SELECT columns FROM data_schema ORDER BY id DESC LIMIT 1');
     const existingColumns = (schemaRes.rows.length > 0 && schemaRes.rows[0].columns) ? schemaRes.rows[0].columns : [];
 
@@ -336,19 +506,16 @@ app.get('/api/search', async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
-    // 1. Text Keyword Search
     if (queryStr) {
       whereConditions.push(`search_text ILIKE $${paramIndex}`);
       values.push(`%${queryStr}%`);
       paramIndex++;
     }
 
-    // 2. Specific Column Filters with Smart Alias Matching (District, Unit/Forona/ഫൊറോന, Blood Group, etc.)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
         if (val !== undefined && val !== null && val !== '') {
-          // Find matching keys in existing dataset columns
           const candidateKeys = getMatchingColumnKeys(col, existingColumns);
 
           if (candidateKeys.length > 0) {
@@ -361,7 +528,6 @@ app.get('/api/search', async (req, res) => {
             });
             whereConditions.push(`(${colOrConditions.join(' OR ')})`);
           } else {
-            // Direct key check
             whereConditions.push(`data ->> $${paramIndex} ILIKE $${paramIndex + 1}`);
             values.push(col);
             values.push(val);
@@ -399,27 +565,22 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// Helper function to resolve column aliases dynamically
 function getMatchingColumnKeys(filterName, columns) {
   const norm = filterName.toLowerCase().trim();
 
-  // If exact match exists
   const exact = columns.filter(c => c.toLowerCase().trim() === norm);
   if (exact.length > 0) return exact;
 
-  // Alias matching for Blood Group
   if (norm.includes('blood') || norm.includes('group') || norm === 'bg') {
     const matches = columns.filter(c => /blood|group|bg/i.test(c));
     if (matches.length > 0) return matches;
   }
 
-  // Alias matching for District
   if (norm.includes('district') || norm.includes('dist')) {
     const matches = columns.filter(c => /district|dist/i.test(c));
     if (matches.length > 0) return matches;
   }
 
-  // Alias matching for Unit / Forona / ഫൊറോന
   if (norm.includes('unit') || norm.includes('forona') || norm.includes('ഫൊറോന')) {
     const matches = columns.filter(c => /unit|forona|ഫൊറോന/i.test(c));
     if (matches.length > 0) return matches;

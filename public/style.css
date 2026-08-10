@@ -6,7 +6,6 @@
   --font-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-heading: 'Outfit', 'Inter', sans-serif;
 
-  /* Color Palette - Crimson & Dark Slate Theme */
   --primary: #dc2626;
   --primary-hover: #b91c1c;
   --primary-light: #fef2f2;
@@ -44,7 +43,6 @@
   --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* Reset & Base */
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -69,12 +67,10 @@ body {
   width: 100%;
 }
 
-/* Utility Classes */
 .hidden {
   display: none !important;
 }
 
-/* Header Navbar */
 .navbar {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(8px);
@@ -144,7 +140,6 @@ body {
   border: 1px solid var(--border-color);
 }
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -220,7 +215,6 @@ body {
   text-decoration: underline;
 }
 
-/* Hero Section */
 .hero-banner {
   text-align: center;
   margin: 2rem 0 1.5rem 0;
@@ -240,7 +234,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Cards */
 .card {
   background: var(--bg-card);
   border-radius: var(--radius-lg);
@@ -250,7 +243,6 @@ body {
   transition: var(--transition);
 }
 
-/* Search Box & Filters */
 .search-card {
   margin-bottom: 2rem;
   box-shadow: var(--shadow-md);
@@ -304,10 +296,9 @@ body {
   line-height: 1;
 }
 
-/* Dynamic Filter Controls */
 .filters-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: 0.85rem;
 }
 
@@ -349,7 +340,6 @@ body {
   justify-content: flex-end;
 }
 
-/* Results Header */
 .results-header {
   display: flex;
   align-items: center;
@@ -386,7 +376,6 @@ body {
   font-size: 0.85rem;
 }
 
-/* Results Card Grid */
 .results-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -394,7 +383,6 @@ body {
   margin-bottom: 2rem;
 }
 
-/* Individual Data Card */
 .donor-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -458,7 +446,7 @@ body {
 
 .field-label {
   color: var(--text-muted);
-  width: 35%;
+  width: 40%;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -466,7 +454,7 @@ body {
 .field-value {
   color: var(--text-main);
   font-weight: 600;
-  width: 65%;
+  width: 60%;
   word-break: break-word;
 }
 
@@ -482,7 +470,6 @@ body {
   flex: 1;
 }
 
-/* Empty & Error States */
 .empty-state {
   grid-column: 1 / -1;
   text-align: center;
@@ -511,13 +498,12 @@ body {
   margin: 0 auto 1.25rem auto;
 }
 
-/* Pagination */
 .pagination-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  margin: 2rem 0;
+  margin: 1.5rem 0;
 }
 
 .page-indicator {
@@ -526,7 +512,7 @@ body {
   color: var(--text-muted);
 }
 
-/* Modal Overlay & Card */
+/* Modals */
 .modal-overlay {
   position: fixed;
   inset: 0;
@@ -555,6 +541,10 @@ body {
   max-height: 90vh;
   display: flex;
   flex-direction: column;
+}
+
+.modal-large {
+  max-width: 960px;
 }
 
 .modal-header {
@@ -598,6 +588,90 @@ body {
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+/* Admin Data Table Styling */
+.admin-table-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.admin-search-input {
+  flex: 1;
+  max-width: 320px;
+}
+
+.admin-search-input input {
+  width: 100%;
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  outline: none;
+}
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  max-height: 520px;
+}
+
+.admin-data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+  text-align: left;
+}
+
+.admin-data-table th, .admin-data-table td {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.admin-data-table th {
+  background-color: var(--bg-main);
+  font-weight: 700;
+  color: var(--text-main);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  box-shadow: 0 1px 0 var(--border-color);
+}
+
+.admin-data-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.action-btns {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.btn-icon {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  background: white;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.btn-icon:hover {
+  background: var(--bg-subtle);
+}
+
+.btn-icon-danger:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
+  border-color: var(--primary-border);
 }
 
 /* Forms */
@@ -613,7 +687,7 @@ body {
   color: var(--text-main);
 }
 
-.form-group input {
+.form-group input, .form-group select {
   width: 100%;
   padding: 0.65rem 0.85rem;
   border: 1px solid var(--border-color);
@@ -624,7 +698,7 @@ body {
   transition: var(--transition);
 }
 
-.form-group input:focus {
+.form-group input:focus, .form-group select:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.15);
 }
@@ -639,7 +713,6 @@ body {
   color: var(--primary);
 }
 
-/* Admin Tabs */
 .tab-buttons {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -664,7 +737,6 @@ body {
   border-bottom-color: var(--primary);
 }
 
-/* File Upload Zone */
 .upload-zone {
   border: 2px dashed var(--primary-border);
   background: var(--primary-light);
@@ -738,7 +810,6 @@ body {
   text-align: center;
 }
 
-/* Alerts */
 .alert {
   padding: 0.75rem 1rem;
   border-radius: var(--radius-sm);
@@ -758,7 +829,6 @@ body {
   border: 1px solid #bbf7d0;
 }
 
-/* Dataset Stats */
 .dataset-management {
   margin-top: 1.25rem;
   padding: 1rem;
@@ -783,7 +853,6 @@ body {
   justify-content: flex-end;
 }
 
-/* Toast Notifications */
 .toast-container {
   position: fixed;
   bottom: 1.5rem;
@@ -812,7 +881,6 @@ body {
   to { transform: translateY(0); opacity: 1; }
 }
 
-/* Footer */
 .footer {
   margin-top: auto;
   border-top: 1px solid var(--border-color);
@@ -823,7 +891,6 @@ body {
   color: var(--text-muted);
 }
 
-/* Responsive Styles */
 @media (max-width: 640px) {
   .hero-title {
     font-size: 1.5rem;
