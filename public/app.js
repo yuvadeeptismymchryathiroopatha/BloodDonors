@@ -387,16 +387,32 @@ class BloodDonorApp {
     this.renderPagination(pagination);
   }
 
+  toSentenceCase(str) {
+    if (typeof str !== 'string' || !str) return str;
+    const trimmed = str.trim();
+    if (/^(A|B|AB|O)[+-]$/i.test(trimmed)) return trimmed.toUpperCase();
+    if (/^\+?[0-9\s-]+$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    return trimmed.split(/\s+/).map(word => {
+      if (!word) return '';
+      if (/^Fr\.?$/i.test(word)) return 'Fr';
+      if (/^Dr\.?$/i.test(word)) return 'Dr';
+      if (word.length === 1) return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
+  }
+
   createDonorCard(donor) {
     const card = document.createElement('div');
     const isAvailable = donor._isAvailable !== false;
     card.className = isAvailable ? 'donor-card' : 'donor-card donor-card-faded';
 
     const bloodGroupKey = Object.keys(donor).find(k => /blood|group|bg/i.test(k));
-    const bloodGroup = (bloodGroupKey && donor[bloodGroupKey]) ? donor[bloodGroupKey] : 'O+';
+    const bloodGroup = (bloodGroupKey && donor[bloodGroupKey]) ? donor[bloodGroupKey].toString().trim().toUpperCase() : 'O+';
 
     const nameKey = Object.keys(donor).find(k => /name/i.test(k));
-    const name = (nameKey && donor[nameKey]) ? donor[nameKey] : 'Blood Donor';
+    const rawName = (nameKey && donor[nameKey]) ? donor[nameKey] : 'Blood Donor';
+    const name = this.toSentenceCase(rawName);
 
     const phoneKey = Object.keys(donor).find(k => /phone|contact/i.test(k));
     const phone = (phoneKey && donor[phoneKey]) ? donor[phoneKey] : '';
@@ -408,10 +424,11 @@ class BloodDonorApp {
       if (ignoreKeys.has(k)) return;
       const val = donor[k];
       if (val !== undefined && val !== null && val !== '') {
+        const displayVal = (k.toLowerCase().includes('phone') || k.toLowerCase().includes('age')) ? val.toString() : this.toSentenceCase(val.toString());
         fieldsHtml += `
           <div class="field-row">
             <span class="field-label">${this.escapeHtml(k)}:</span>
-            <span class="field-value">${this.escapeHtml(val.toString())}</span>
+            <span class="field-value">${this.escapeHtml(displayVal)}</span>
           </div>
         `;
       }

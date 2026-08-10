@@ -267,7 +267,8 @@ class AdminApp {
 
         columns.forEach(col => {
           const val = row.data[col] !== undefined && row.data[col] !== null ? row.data[col] : '-';
-          rowHtml += `<td>${this.escapeHtml(val.toString())}</td>`;
+          const formattedVal = (col.toLowerCase().includes('phone') || col.toLowerCase().includes('age') || /blood/i.test(col)) ? val.toString() : this.toSentenceCase(val.toString());
+          rowHtml += `<td>${this.escapeHtml(formattedVal)}</td>`;
         });
 
         rowHtml += `
@@ -900,6 +901,21 @@ class AdminApp {
       toast.style.transition = 'opacity 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, 3000);
+  }
+
+  toSentenceCase(str) {
+    if (typeof str !== 'string' || !str) return str;
+    const trimmed = str.trim();
+    if (/^(A|B|AB|O)[+-]$/i.test(trimmed)) return trimmed.toUpperCase();
+    if (/^\+?[0-9\s-]+$/.test(trimmed) || /^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    return trimmed.split(/\s+/).map(word => {
+      if (!word) return '';
+      if (/^Fr\.?$/i.test(word)) return 'Fr';
+      if (/^Dr\.?$/i.test(word)) return 'Dr';
+      if (word.length === 1) return word.toUpperCase();
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+    }).join(' ');
   }
 
   escapeHtml(str) {
