@@ -1,6 +1,6 @@
 /**
- * Bloodrupatha - Public Search Directory Application Logic
- * Supports filtering by Zone (മേഖല), Blood Group (രക്തഗ്രൂപ്പ്), Forona (ഫൊറോന), and Unit (യൂണിറ്റ്).
+ * Yuva Blood Forum - Public Search Directory Application Logic
+ * Supports filtering by Zone (മേഖല), Blood Group (രക്തഗ്രൂപ്പ്), and Forona (ഫൊറോന).
  */
 
 class App {
@@ -99,11 +99,10 @@ class App {
     const filterableOpts = this.schema.filterableOptions || {};
     const columns = this.schema.columns || [];
 
-    // Locate Keys
+    // Locate Filter Keys
     const zoneKey = columns.find(c => /zone|മേഖല/i.test(c)) || 'Zone (മേഖല)';
     const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
     const foronaKey = columns.find(c => /forona|ഫൊറോന/i.test(c)) || 'Forona (ഫൊറോന)';
-    const unitKey = columns.find(c => /unit|യൂണിറ്റ്/i.test(c)) || 'Unit (യൂണിറ്റ്)';
 
     // 1. Zone Filter (മേഖല)
     const zoneOptions = filterableOpts[zoneKey] || this.extractOptionsByRegex(/zone|മേഖല/i);
@@ -136,16 +135,6 @@ class App {
       label: '🏛️ Forona (ഫൊറോന)',
       placeholder: 'All Foronas (എല്ലാ ഫൊറോനയും)',
       options: foronaOptions
-    });
-
-    // 4. Unit Filter (യൂണിറ്റ്)
-    const unitOptions = filterableOpts[unitKey] || this.extractOptionsByRegex(/unit|യൂണിറ്റ്/i);
-    this.createSelectFilterGroup({
-      container,
-      columnKey: unitKey,
-      label: '🏢 Unit (യൂണിറ്റ്)',
-      placeholder: 'All Units (എല്ലാ യൂണിറ്റും)',
-      options: unitOptions
     });
 
     this.toggleResetButton();
@@ -293,7 +282,7 @@ class App {
         <div class="empty-state">
           <div class="empty-icon">🔍</div>
           <h3 class="empty-title">No matching eligible donors found</h3>
-          <p class="empty-desc">Try clearing search keywords or selecting different Zone / Forona / Unit filters. Note: Only donors aged 18 to 55 are displayed.</p>
+          <p class="empty-desc">Try clearing search keywords or selecting different Zone / Forona filters. Note: Only donors aged 18 to 55 are displayed.</p>
           ${Object.keys(this.filters).length > 0 || this.searchQuery ? `
             <button class="btn btn-outline btn-sm" onclick="app.resetAllSearch()">Reset Filters</button>
           ` : ''}
