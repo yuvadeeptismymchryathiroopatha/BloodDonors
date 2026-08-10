@@ -121,7 +121,7 @@ async function syncUserProfileToDataRecords(userId) {
       "Age": user.age ? user.age.toString() : "25",
       "Phone": user.phone,
       "Zone (മേഖല)": user.zone || "Changanacherry Zone",
-      "Forona (ഫൊറോന)": user.forona || "Changanassery",
+      "Forane (ഫൊറോന)": user.forona || "Changanacherry",
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
       "Last Donation Date": user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : ""

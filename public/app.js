@@ -20,7 +20,7 @@ class BloodDonorApp {
     // Zone to Foranes official mapping
     this.zoneForaneMap = {
       'kottayam': ['Kottayam', 'Kudamaloor', 'Athirampuzha', 'Manimala', 'Nedumkunnam'],
-      'changanacherry': ['Changanacherry', 'Changanassery', 'Thuruthy', 'Thrickodithanam', 'Thrikodithanam', 'Kurumpanadom'],
+      'changanacherry': ['Changanacherry', 'Thuruthy', 'Thrickodithanam', 'Thrikodithanam', 'Kurumpanadom'],
       'alappuzha': ['Alappuzha', 'Alapuzha', 'Muhamma'],
       'kuttanad': ['Edathua', 'Pulincunno', 'Pulinkunnoo', 'Champakulam'],
       'kollam': ['Kollam-Ayoor', 'Kollam', 'Kollam-ayoor'],
