@@ -15,7 +15,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // Google OAuth Client
-const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1085732918231-mockclientid.apps.googleusercontent.com';
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '788181288036-3q8gb7vubkp0raidlqkngd8j3l8aetcv.apps.googleusercontent.com';
 const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 const uploadDir = process.env.VERCEL ? os.tmpdir() : path.join(__dirname, 'uploads');

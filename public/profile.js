@@ -32,8 +32,11 @@ class ProfileApp {
   initGoogleSDK() {
     const btnWrapper = document.getElementById('googleSignInBtn');
 
-    // Only load native Google Popup if client ID is real and not mock
-    if (this.googleClientId && !this.googleClientId.includes('mockclientid') && typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+    if (!this.googleClientId) {
+      this.googleClientId = '788181288036-3q8gb7vubkp0raidlqkngd8j3l8aetcv.apps.googleusercontent.com';
+    }
+
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
       try {
         google.accounts.id.initialize({
           client_id: this.googleClientId,
