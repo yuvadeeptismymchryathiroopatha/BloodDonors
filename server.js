@@ -13,7 +13,6 @@ const { pool, initDb } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Setup upload directory (use OS temp directory for Vercel serverless compatibility)
 const uploadDir = process.env.VERCEL ? os.tmpdir() : path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir) && !process.env.VERCEL) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -21,7 +20,6 @@ if (!fs.existsSync(uploadDir) && !process.env.VERCEL) {
 
 const upload = multer({ dest: uploadDir });
 
-// Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -36,23 +34,20 @@ app.use(session({
   }
 }));
 
-// Serve static frontend in local environment
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Middleware to ensure DB tables exist in serverless invocations
 let dbInitPromise = null;
 app.use(async (req, res, next) => {
   if (!dbInitPromise) {
     dbInitPromise = initDb().catch(err => {
       console.error('DB init failed in request middleware:', err);
-      dbInitPromise = null; // reset to retry on next request if failed
+      dbInitPromise = null;
     });
   }
   await dbInitPromise;
   next();
 });
 
-// Admin Auth Middleware
 function requireAdmin(req, res, next) {
   if (req.session && req.session.admin) {
     return next();
@@ -62,7 +57,6 @@ function requireAdmin(req, res, next) {
 
 // ----------------- ADMIN API ROUTES -----------------
 
-// Admin Login
 app.post('/api/admin/login', async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -94,7 +88,6 @@ app.post('/api/admin/login', async (req, res) => {
   }
 });
 
-// Admin Status
 app.get('/api/admin/status', (req, res) => {
   if (req.session && req.session.admin) {
     return res.json({ loggedIn: true, username: req.session.admin.username });
@@ -102,7 +95,6 @@ app.get('/api/admin/status', (req, res) => {
   return res.json({ loggedIn: false });
 });
 
-// Admin Logout
 app.post('/api/admin/logout', (req, res) => {
   req.session.destroy((err) => {
     if (err) {
@@ -113,7 +105,6 @@ app.post('/api/admin/logout', (req, res) => {
   });
 });
 
-// Change Admin Username and Password
 app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   try {
     const { currentPassword, newUsername, newPassword } = req.body;
@@ -204,7 +195,7 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
           if (!columnValueCounts[cleanKey]) {
             columnValueCounts[cleanKey] = new Set();
           }
-          if (val.length <= 100) {
+          if (val.length <= 150) {
             columnValueCounts[cleanKey].add(val);
           }
         }
@@ -229,7 +220,7 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
 
       columns.forEach(col => {
         const uniqueValuesSet = columnValueCounts[col];
-        if (uniqueValuesSet && uniqueValuesSet.size > 0 && uniqueValuesSet.size <= 200) {
+        if (uniqueValuesSet && uniqueValuesSet.size > 0 && uniqueValuesSet.size <= 250) {
           filterableOptions[col] = Array.from(uniqueValuesSet).sort();
         }
       });
@@ -275,7 +266,6 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
     });
 });
 
-// Clear Data Records
 app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
   const client = await pool.connect();
   try {
@@ -295,7 +285,6 @@ app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
 
 // ----------------- PUBLIC API ROUTES -----------------
 
-// Schema Endpoint
 app.get('/api/schema', async (req, res) => {
   try {
     const schemaRes = await pool.query('SELECT columns, filterable_options, total_records, uploaded_at FROM data_schema ORDER BY id DESC LIMIT 1');
@@ -322,7 +311,7 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
-// Search Endpoint
+// Flexible Search Endpoint supporting District, Unit / Forona (ഫൊറോന), Blood Group, and Custom Fields
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -339,24 +328,45 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
+    // Get current column headers stored in data_schema
+    const schemaRes = await pool.query('SELECT columns FROM data_schema ORDER BY id DESC LIMIT 1');
+    const existingColumns = (schemaRes.rows.length > 0 && schemaRes.rows[0].columns) ? schemaRes.rows[0].columns : [];
+
     const whereConditions = [];
     const values = [];
     let paramIndex = 1;
 
+    // 1. Text Keyword Search
     if (queryStr) {
       whereConditions.push(`search_text ILIKE $${paramIndex}`);
       values.push(`%${queryStr}%`);
       paramIndex++;
     }
 
+    // 2. Specific Column Filters with Smart Alias Matching (District, Unit/Forona/ഫൊറോന, Blood Group, etc.)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
         if (val !== undefined && val !== null && val !== '') {
-          whereConditions.push(`data ->> $${paramIndex} ILIKE $${paramIndex + 1}`);
-          values.push(col);
-          values.push(val);
-          paramIndex += 2;
+          // Find matching keys in existing dataset columns
+          const candidateKeys = getMatchingColumnKeys(col, existingColumns);
+
+          if (candidateKeys.length > 0) {
+            const colOrConditions = candidateKeys.map(k => {
+              const cond = `data ->> $${paramIndex} ILIKE $${paramIndex + 1}`;
+              values.push(k);
+              values.push(val);
+              paramIndex += 2;
+              return cond;
+            });
+            whereConditions.push(`(${colOrConditions.join(' OR ')})`);
+          } else {
+            // Direct key check
+            whereConditions.push(`data ->> $${paramIndex} ILIKE $${paramIndex + 1}`);
+            values.push(col);
+            values.push(val);
+            paramIndex += 2;
+          }
         }
       });
     }
@@ -389,7 +399,35 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// Export app module for Vercel Serverless & direct start for local testing
+// Helper function to resolve column aliases dynamically
+function getMatchingColumnKeys(filterName, columns) {
+  const norm = filterName.toLowerCase().trim();
+
+  // If exact match exists
+  const exact = columns.filter(c => c.toLowerCase().trim() === norm);
+  if (exact.length > 0) return exact;
+
+  // Alias matching for Blood Group
+  if (norm.includes('blood') || norm.includes('group') || norm === 'bg') {
+    const matches = columns.filter(c => /blood|group|bg/i.test(c));
+    if (matches.length > 0) return matches;
+  }
+
+  // Alias matching for District
+  if (norm.includes('district') || norm.includes('dist')) {
+    const matches = columns.filter(c => /district|dist/i.test(c));
+    if (matches.length > 0) return matches;
+  }
+
+  // Alias matching for Unit / Forona / ഫൊറോന
+  if (norm.includes('unit') || norm.includes('forona') || norm.includes('ഫൊറോന')) {
+    const matches = columns.filter(c => /unit|forona|ഫൊറോന/i.test(c));
+    if (matches.length > 0) return matches;
+  }
+
+  return [filterName];
+}
+
 module.exports = app;
 
 if (require.main === module) {

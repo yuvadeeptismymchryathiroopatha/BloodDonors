@@ -1,5 +1,5 @@
 /**
- * Bloodrupatha - Ultra-lightweight Vanilla JS App Logic
+ * Bloodrupatha - Lightweight Search & Data Portal App Logic
  */
 
 class App {
@@ -28,7 +28,6 @@ class App {
   }
 
   bindEvents() {
-    // Search input debouncing & enter key
     const searchInput = document.getElementById('searchInput');
     const clearBtn = document.getElementById('clearSearchBtn');
 
@@ -76,7 +75,6 @@ class App {
       });
     }
 
-    // File Drag & Drop
     const dropZone = document.getElementById('dropZone');
     if (dropZone) {
       ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -127,62 +125,117 @@ class App {
     if (!container) return;
 
     container.innerHTML = '';
-    const filterableCols = Object.keys(this.schema.filterableOptions || {});
 
-    if (filterableCols.length === 0) {
-      if (filterActions) filterActions.classList.add('hidden');
-      return;
-    }
+    const filterableOpts = this.schema.filterableOptions || {};
+    const columns = this.schema.columns || [];
 
-    filterableCols.forEach(colName => {
-      const options = this.schema.filterableOptions[colName];
-      if (!options || options.length === 0) return;
+    // Prominent Filter Target Keys: Blood Group, District, Unit / Forona
+    const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
+    const districtKey = columns.find(c => /district|dist/i.test(c)) || 'District';
+    const foronaKey = columns.find(c => /unit|forona|ഫൊറോന/i.test(c)) || 'Unit / Forona (ഫൊറോന)';
 
-      const group = document.createElement('div');
-      group.className = 'filter-group';
+    // Standard list of blood groups if dataset hasn't uploaded all
+    const defaultBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+    const uploadedBloodGroups = filterableOpts[bloodGroupKey] || [];
+    const combinedBloodGroups = Array.from(new Set([...defaultBloodGroups, ...uploadedBloodGroups])).sort();
 
-      const label = document.createElement('label');
-      label.className = 'filter-label';
-      label.textContent = colName;
+    // 1. Blood Group Filter
+    this.createSelectFilterGroup({
+      container,
+      columnKey: bloodGroupKey,
+      label: '🩸 Blood Group (രക്തഗ്രൂപ്പ്)',
+      placeholder: 'All Blood Groups',
+      options: combinedBloodGroups
+    });
 
-      const select = document.createElement('select');
-      select.className = 'filter-select';
-      select.dataset.column = colName;
+    // 2. District Filter
+    const districtOptions = filterableOpts[districtKey] || this.extractOptionsByRegex(/district|dist/i);
+    this.createSelectFilterGroup({
+      container,
+      columnKey: districtKey,
+      label: '📍 District (ജില്ല)',
+      placeholder: 'All Districts',
+      options: districtOptions
+    });
 
-      const defaultOpt = document.createElement('option');
-      defaultOpt.value = '';
-      defaultOpt.textContent = `All ${colName}s`;
-      select.appendChild(defaultOpt);
+    // 3. Unit / Forona Filter
+    const foronaOptions = filterableOpts[foronaKey] || this.extractOptionsByRegex(/unit|forona|ഫൊറോന/i);
+    this.createSelectFilterGroup({
+      container,
+      columnKey: foronaKey,
+      label: '🏛️ Unit / Forona (യൂണിറ്റ് / ഫൊറോന)',
+      placeholder: 'All Units / Foronas',
+      options: foronaOptions
+    });
 
-      options.forEach(val => {
-        const opt = document.createElement('option');
-        opt.value = val;
-        opt.textContent = val;
-        if (this.filters[colName] === val) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
-      });
+    // 4. Any additional CSV columns
+    Object.keys(filterableOpts).forEach(colName => {
+      if (/blood|group|bg|district|dist|unit|forona|ഫൊറോന/i.test(colName)) return;
 
-      select.addEventListener('change', (e) => {
-        const col = e.target.dataset.column;
-        const selectedVal = e.target.value;
-        if (selectedVal) {
-          this.filters[col] = selectedVal;
-        } else {
-          delete this.filters[col];
-        }
-        this.currentPage = 1;
-        this.performSearch();
-        this.toggleResetButton();
-      });
-
-      group.appendChild(label);
-      group.appendChild(select);
-      container.appendChild(group);
+      const opts = filterableOpts[colName];
+      if (opts && opts.length > 0) {
+        this.createSelectFilterGroup({
+          container,
+          columnKey: colName,
+          label: colName,
+          placeholder: `All ${colName}s`,
+          options: opts
+        });
+      }
     });
 
     this.toggleResetButton();
+  }
+
+  extractOptionsByRegex(regex) {
+    const filterableOpts = this.schema.filterableOptions || {};
+    const key = Object.keys(filterableOpts).find(k => regex.test(k));
+    return key ? filterableOpts[key] : [];
+  }
+
+  createSelectFilterGroup({ container, columnKey, label, placeholder, options }) {
+    const group = document.createElement('div');
+    group.className = 'filter-group';
+
+    const lbl = document.createElement('label');
+    lbl.className = 'filter-label';
+    lbl.textContent = label;
+
+    const select = document.createElement('select');
+    select.className = 'filter-select';
+    select.dataset.column = columnKey;
+
+    const defaultOpt = document.createElement('option');
+    defaultOpt.value = '';
+    defaultOpt.textContent = placeholder;
+    select.appendChild(defaultOpt);
+
+    options.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      if (this.filters[columnKey] === val) {
+        opt.selected = true;
+      }
+      select.appendChild(opt);
+    });
+
+    select.addEventListener('change', (e) => {
+      const col = e.target.dataset.column;
+      const selectedVal = e.target.value;
+      if (selectedVal) {
+        this.filters[col] = selectedVal;
+      } else {
+        delete this.filters[col];
+      }
+      this.currentPage = 1;
+      this.performSearch();
+      this.toggleResetButton();
+    });
+
+    group.appendChild(lbl);
+    group.appendChild(select);
+    container.appendChild(group);
   }
 
   toggleResetButton() {
@@ -306,7 +359,6 @@ class App {
       container.appendChild(card);
     });
 
-    // Render Pagination
     if (paginationContainer) {
       if (pagination.totalPages > 1) {
         paginationContainer.classList.remove('hidden');
@@ -328,24 +380,20 @@ class App {
     const card = document.createElement('div');
     card.className = 'donor-card';
 
-    // Intelligently find header keys
     const keys = Object.keys(record).filter(k => k !== 'id');
     
-    // Find Title / Name field
     let titleKey = keys.find(k => /name|donor|person|fullname|title/i.test(k)) || keys[0] || 'Record';
     let titleVal = record[titleKey] || 'N/A';
 
-    // Find Blood Group or Badge field
     let badgeKey = keys.find(k => /blood|group|bg/i.test(k));
     let badgeVal = badgeKey ? record[badgeKey] : null;
 
-    // Find Phone / Contact field
     let phoneKey = keys.find(k => /phone|mobile|contact|tel|whatsapp|number/i.test(k));
     let phoneVal = phoneKey ? record[phoneKey] : null;
 
     let fieldsHtml = '';
     keys.forEach(k => {
-      if (k === titleKey || (badgeKey && k === badgeKey)) return; // already in title/badge
+      if (k === titleKey || (badgeKey && k === badgeKey)) return;
       const val = record[k];
       if (val !== undefined && val !== null && val !== '') {
         fieldsHtml += `
@@ -357,7 +405,6 @@ class App {
       }
     });
 
-    // Clean Phone number for tel: and whatsapp links
     let actionsHtml = '';
     if (phoneVal) {
       const cleanPhone = phoneVal.replace(/[^\d+]/g, '');
@@ -568,7 +615,6 @@ class App {
         this.updateAdminUI(true);
         this.showToast('Admin credentials updated!');
 
-        // Reset form inputs
         document.getElementById('currentPassword').value = '';
         document.getElementById('newUsername').value = '';
         document.getElementById('newPassword').value = '';
@@ -660,7 +706,6 @@ class App {
         document.getElementById('selectedFileInfo')?.classList.add('hidden');
         this.selectedCSVFile = null;
 
-        // Reload Schema & Perform Search
         await this.loadSchema();
         await this.performSearch();
       } else {
@@ -699,7 +744,6 @@ class App {
     }
   }
 
-  // Helper Toast
   showToast(message) {
     const container = document.getElementById('toastContainer');
     if (!container) return;
@@ -728,7 +772,6 @@ class App {
   }
 }
 
-// Initialize Application
 document.addEventListener('DOMContentLoaded', () => {
   window.app = new App();
 });
