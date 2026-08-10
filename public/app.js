@@ -1,6 +1,6 @@
 /**
  * Bloodrupatha - Public Search Directory Application Logic
- * Only permits filtering by Blood Group, Forona (ഫൊറോന), and Unit (യൂണിറ്റ്).
+ * Supports filtering by Zone (മേഖല), Blood Group (രക്തഗ്രൂപ്പ്), Forona (ഫൊറോന), and Unit (യൂണിറ്റ്).
  */
 
 class App {
@@ -99,16 +99,27 @@ class App {
     const filterableOpts = this.schema.filterableOptions || {};
     const columns = this.schema.columns || [];
 
-    // Locate Exact/Alias Keys
+    // Locate Keys
+    const zoneKey = columns.find(c => /zone|മേഖല/i.test(c)) || 'Zone (മേഖല)';
     const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
     const foronaKey = columns.find(c => /forona|ഫൊറോന/i.test(c)) || 'Forona (ഫൊറോന)';
     const unitKey = columns.find(c => /unit|യൂണിറ്റ്/i.test(c)) || 'Unit (യൂണിറ്റ്)';
 
+    // 1. Zone Filter (മേഖല)
+    const zoneOptions = filterableOpts[zoneKey] || this.extractOptionsByRegex(/zone|മേഖല/i);
+    this.createSelectFilterGroup({
+      container,
+      columnKey: zoneKey,
+      label: '🗺️ Zone (മേഖല)',
+      placeholder: 'All Zones (എല്ലാ മേഖലയും)',
+      options: zoneOptions
+    });
+
+    // 2. Blood Group Filter (രക്തഗ്രൂപ്പ്)
     const defaultBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const uploadedBloodGroups = filterableOpts[bloodGroupKey] || [];
     const combinedBloodGroups = Array.from(new Set([...defaultBloodGroups, ...uploadedBloodGroups])).sort();
 
-    // 1. Blood Group Filter (രക്തഗ്രൂപ്പ്)
     this.createSelectFilterGroup({
       container,
       columnKey: bloodGroupKey,
@@ -117,7 +128,7 @@ class App {
       options: combinedBloodGroups
     });
 
-    // 2. Forona Filter (ഫൊറോന)
+    // 3. Forona Filter (ഫൊറോന)
     const foronaOptions = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|ഫൊറോന/i);
     this.createSelectFilterGroup({
       container,
@@ -127,7 +138,7 @@ class App {
       options: foronaOptions
     });
 
-    // 3. Unit Filter (യൂണിറ്റ്)
+    // 4. Unit Filter (യൂണിറ്റ്)
     const unitOptions = filterableOpts[unitKey] || this.extractOptionsByRegex(/unit|യൂണിറ്റ്/i);
     this.createSelectFilterGroup({
       container,
@@ -282,7 +293,7 @@ class App {
         <div class="empty-state">
           <div class="empty-icon">🔍</div>
           <h3 class="empty-title">No matching eligible donors found</h3>
-          <p class="empty-desc">Try clearing search keywords or selecting different Forona / Unit filters. Note: Only donors aged 18 to 55 are displayed.</p>
+          <p class="empty-desc">Try clearing search keywords or selecting different Zone / Forona / Unit filters. Note: Only donors aged 18 to 55 are displayed.</p>
           ${Object.keys(this.filters).length > 0 || this.searchQuery ? `
             <button class="btn btn-outline btn-sm" onclick="app.resetAllSearch()">Reset Filters</button>
           ` : ''}

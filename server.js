@@ -202,7 +202,7 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   }
 });
 
-// GET Admin Records (No age restriction for admin view)
+// GET Admin Records
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -364,7 +364,7 @@ app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   }
 });
 
-// CSV Upload & Parsing Endpoint
+// CSV Upload Endpoint
 app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async (req, res) => {
   if (!req.file) {
     return res.status(400).json({ success: false, error: 'No CSV file uploaded.' });
@@ -513,7 +513,7 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
-// PUBLIC SEARCH ROUTE (Enforces Age 18 to 55 restriction)
+// PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Zone/Forona/Unit/BloodGroup matching)
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -544,7 +544,7 @@ app.get('/api/search', async (req, res) => {
       paramIndex++;
     }
 
-    // 2. Specific Column Filters (Forona, Unit, Blood Group)
+    // 2. Column Filters (Zone, Forona, Unit, Blood Group)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
@@ -600,7 +600,6 @@ app.get('/api/search', async (req, res) => {
     const dataValues = [...values, limit, offset];
     const dataRes = await pool.query(dataSql, dataValues);
 
-    // Double check JS-level filtering to guarantee 18 <= age <= 55
     const validRecords = dataRes.rows.map(r => ({ id: r.id, ...r.data })).filter(rec => {
       const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
       if (!ageKey || rec[ageKey] === undefined || rec[ageKey] === null || rec[ageKey] === '') return true;
@@ -632,6 +631,11 @@ function getMatchingColumnKeys(filterName, columns) {
 
   const exact = columns.filter(c => c.toLowerCase().trim() === norm);
   if (exact.length > 0) return exact;
+
+  if (norm.includes('zone') || norm.includes('മേഖല')) {
+    const matches = columns.filter(c => /zone|മേഖല/i.test(c));
+    if (matches.length > 0) return matches;
+  }
 
   if (norm.includes('blood') || norm.includes('group') || norm === 'bg') {
     const matches = columns.filter(c => /blood|group|bg/i.test(c));
