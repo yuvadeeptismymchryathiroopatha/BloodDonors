@@ -5,6 +5,7 @@ const csvParser = require('csv-parser');
 const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 require('dotenv').config();
 
 const { pool, initDb } = require('./db');
@@ -12,9 +13,9 @@ const { pool, initDb } = require('./db');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Setup upload directory
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) {
+// Setup upload directory (use OS temp directory for Vercel serverless compatibility)
+const uploadDir = process.env.VERCEL ? os.tmpdir() : path.join(__dirname, 'uploads');
+if (!fs.existsSync(uploadDir) && !process.env.VERCEL) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
@@ -29,14 +30,27 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 24 * 60 * 60 * 1000,
     httpOnly: true,
     sameSite: 'lax'
   }
 }));
 
-// Serve static frontend
+// Serve static frontend in local environment
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Middleware to ensure DB tables exist in serverless invocations
+let dbInitPromise = null;
+app.use(async (req, res, next) => {
+  if (!dbInitPromise) {
+    dbInitPromise = initDb().catch(err => {
+      console.error('DB init failed in request middleware:', err);
+      dbInitPromise = null; // reset to retry on next request if failed
+    });
+  }
+  await dbInitPromise;
+  next();
+});
 
 // Admin Auth Middleware
 function requireAdmin(req, res, next) {
@@ -124,7 +138,6 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
 
     if (newUsername && newUsername.trim() !== '') {
       const trimmedUser = newUsername.trim();
-      // Check if username taken by another user
       const existing = await pool.query('SELECT id FROM admin_users WHERE LOWER(username) = LOWER($1) AND id != $2', [trimmedUser, adminId]);
       if (existing.rows.length > 0) {
         return res.status(400).json({ success: false, error: 'Username is already taken by another user.' });
@@ -171,7 +184,7 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
 
   fs.createReadStream(filePath)
     .pipe(csvParser({
-      mapHeaders: ({ header }) => header.trim().replace(/^[\uFEFF\uFFFE]/, '') // remove UTF-8 BOM if present
+      mapHeaders: ({ header }) => header.trim().replace(/^[\uFEFF\uFFFE]/, '')
     }))
     .on('data', (row) => {
       const cleanRow = {};
@@ -188,11 +201,10 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
         if (val) {
           rowSearchTextParts.push(val);
 
-          // Track unique values per column for filter dropdown building
           if (!columnValueCounts[cleanKey]) {
             columnValueCounts[cleanKey] = new Set();
           }
-          if (val.length <= 100) { // store distinct values for filters
+          if (val.length <= 100) {
             columnValueCounts[cleanKey].add(val);
           }
         }
@@ -206,10 +218,7 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
       }
     })
     .on('end', async () => {
-      // Cleanup temporary file
-      fs.unlink(filePath, (err) => {
-        if (err) console.error('Failed to delete temp file:', err);
-      });
+      fs.unlink(filePath, () => {});
 
       if (results.length === 0) {
         return res.status(400).json({ success: false, error: 'Uploaded CSV file contains no valid rows or data.' });
@@ -229,17 +238,14 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
       try {
         await client.query('BEGIN');
 
-        // Clear existing data
         await client.query('DELETE FROM data_records');
         await client.query('DELETE FROM data_schema');
 
-        // Batch Insert Data Records
         const insertText = 'INSERT INTO data_records (data, search_text) VALUES ($1, $2)';
         for (const record of results) {
           await client.query(insertText, [JSON.stringify(record.data), record.search_text]);
         }
 
-        // Save Schema
         await client.query(
           'INSERT INTO data_schema (columns, filterable_options, total_records) VALUES ($1, $2, $3)',
           [JSON.stringify(columns), JSON.stringify(filterableOptions), results.length]
@@ -265,7 +271,7 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
     .on('error', (parseErr) => {
       fs.unlink(filePath, () => {});
       console.error('CSV Parsing error:', parseErr);
-      return res.status(400).json({ success: false, error: 'Failed to parse CSV file. Please verify CSV syntax.' });
+      return res.status(400).json({ success: false, error: 'Failed to parse CSV file.' });
     });
 });
 
@@ -289,7 +295,7 @@ app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
 
 // ----------------- PUBLIC API ROUTES -----------------
 
-// Fetch active dataset schema & dynamic filter options
+// Schema Endpoint
 app.get('/api/schema', async (req, res) => {
   try {
     const schemaRes = await pool.query('SELECT columns, filterable_options, total_records, uploaded_at FROM data_schema ORDER BY id DESC LIMIT 1');
@@ -312,11 +318,11 @@ app.get('/api/schema', async (req, res) => {
     });
   } catch (err) {
     console.error('Fetch schema error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to fetch search metadata schema.' });
+    return res.status(500).json({ success: false, error: 'Failed to fetch schema.' });
   }
 });
 
-// Dynamic Data Search
+// Search Endpoint
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -337,14 +343,12 @@ app.get('/api/search', async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
-    // Search Query Keyword filter across search_text
     if (queryStr) {
       whereConditions.push(`search_text ILIKE $${paramIndex}`);
       values.push(`%${queryStr}%`);
       paramIndex++;
     }
 
-    // Specific Column Filters (JSONB match)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
@@ -359,12 +363,10 @@ app.get('/api/search', async (req, res) => {
 
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
-    // Total Count query
     const countSql = `SELECT COUNT(*) FROM data_records ${whereClause}`;
     const countRes = await pool.query(countSql, values);
     const totalRecords = parseInt(countRes.rows[0].count, 10);
 
-    // Data query with pagination
     const dataSql = `SELECT id, data FROM data_records ${whereClause} ORDER BY id ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
     const dataValues = [...values, limit, offset];
     const dataRes = await pool.query(dataSql, dataValues);
@@ -387,15 +389,17 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// Start Server after initializing DB
-initDb()
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`=================================================`);
-      console.log(`Server running at http://localhost:${PORT}`);
-      console.log(`=================================================`);
+// Export app module for Vercel Serverless & direct start for local testing
+module.exports = app;
+
+if (require.main === module) {
+  initDb()
+    .then(() => {
+      app.listen(PORT, () => {
+        console.log(`Server running locally at http://localhost:${PORT}`);
+      });
+    })
+    .catch(err => {
+      console.error('DB initialization failed:', err);
     });
-  })
-  .catch(err => {
-    console.error('Failed to start server due to DB connection failure:', err);
-  });
+}
