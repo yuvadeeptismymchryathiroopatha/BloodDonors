@@ -1,14 +1,16 @@
-# BloodDonors - Light Data Search & Admin Portal
+# Yuva Blood Forum by Yuvadeepti-SMYM Archeparchy of Changanassery
 
-An ultra-lightweight, high-performance blood donor and data search website powered by Node.js, Express, and PostgreSQL (Neon DB).
+An ultra-lightweight, high-performance blood donor and data search portal powered by Node.js, Express, and PostgreSQL (Neon DB).
 
 ## Features
 
 - **Ultra-Fast & Lightweight**: Pure Vanilla HTML5/CSS3/JS frontend under 40 KB asset footprint for instant loading.
-- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters generated automatically from uploaded CSV datasets (e.g. Blood Group, District, Location, Availability).
+- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, **Forona (ഫൊറോന)**, and **Unit (യൂണിറ്റ്)**.
+- **Eligible Age Restriction**: Automatically filters public searches to show only eligible donors (**Ages 18 to 55**).
 - **One-Click Contact Actions**: Automatic phone number detection with direct Call (`tel:`) and WhatsApp (`wa.me`) action buttons.
-- **Secure Admin Portal**:
+- **Dedicated Admin Portal (`admin.html`)**:
   - Pre-seeded admin authentication with password hashing (`bcryptjs`).
+  - Interactive Admin Data Table with inline editing, single delete, and multi-select bulk delete.
   - Drag-and-drop CSV file importer with live processing status.
   - Option to update Admin username and password after login.
 - **PostgreSQL Database**: Configured for Neon serverless PostgreSQL connection with SSL support.
