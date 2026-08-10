@@ -672,8 +672,8 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       const zoneVal = r[zoneKey] || 'Unassigned Zone';
       byZone[zoneVal] = (byZone[zoneVal] || 0) + 1;
 
-      const foronaKey = Object.keys(r).find(k => /forona|ഫൊറോന/i.test(k)) || 'Forona (ഫൊറോന)';
-      const foronaVal = r[foronaKey] || 'Unassigned Forona';
+      const foronaKey = Object.keys(r).find(k => /forona|forane|ഫൊറോന|unit/i.test(k)) || 'Forane (ഫൊറോന)';
+      const foronaVal = (r[foronaKey] || 'Unassigned Forane').toString().trim();
       byForona[foronaVal] = (byForona[foronaVal] || 0) + 1;
 
       const bgKey = Object.keys(r).find(k => /blood|group|bg/i.test(k)) || 'Blood Group';
@@ -1138,8 +1138,8 @@ function getMatchingColumnKeys(filterName, columns) {
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('forona') || norm.includes('ഫൊറോന')) {
-    const matches = columns.filter(c => /forona|ഫൊറോന/i.test(c));
+  if (norm.includes('forona') || norm.includes('forane') || norm.includes('ഫൊറോന') || norm.includes('unit')) {
+    const matches = columns.filter(c => /forona|forane|ഫൊറോന|unit/i.test(c));
     if (matches.length > 0) return matches;
   }
 
