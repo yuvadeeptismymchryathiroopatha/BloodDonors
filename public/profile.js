@@ -144,27 +144,18 @@ class ProfileApp {
     }
   }
 
-  switchAuthTab(tabName) {
-    const btnGoogle = document.getElementById('btnGoogleTab');
-    const btnRegister = document.getElementById('btnRegisterTab');
-    const btnLogin = document.getElementById('btnLoginTab');
+  toggleRegistrationForm() {
+    const regTab = document.getElementById('tabRegister');
+    const toggleBtn = document.getElementById('toggleRegBtn');
+    if (!regTab) return;
 
-    const tabGoogle = document.getElementById('tabGoogle');
-    const tabRegister = document.getElementById('tabRegister');
-    const tabLogin = document.getElementById('tabLogin');
-
-    [btnGoogle, btnRegister, btnLogin].forEach(b => b?.classList.remove('active'));
-    [tabGoogle, tabRegister, tabLogin].forEach(t => t?.classList.add('hidden'));
-
-    if (tabName === 'google') {
-      btnGoogle?.classList.add('active');
-      tabGoogle?.classList.remove('hidden');
-    } else if (tabName === 'register') {
-      btnRegister?.classList.add('active');
-      tabRegister?.classList.remove('hidden');
+    if (regTab.classList.contains('hidden')) {
+      regTab.classList.remove('hidden');
+      if (toggleBtn) toggleBtn.textContent = '❌ Close Registration Form';
+      regTab.scrollIntoView({ behavior: 'smooth' });
     } else {
-      btnLogin?.classList.add('active');
-      tabLogin?.classList.remove('hidden');
+      regTab.classList.add('hidden');
+      if (toggleBtn) toggleBtn.textContent = '✍️ Create New Donor Profile';
     }
   }
 

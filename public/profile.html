@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>User Profile & Sign In - Yuva Blood Forum</title>
-  <meta name="description" content="Donor Profile & Google Sign-In Portal for Yuva Blood Forum by Yuvadeepti SMYM ARCHEPARCHY OF CHANGANASSERY.">
+  <meta name="description" content="Donor Profile & Google Sign-In Portal for Yuva Blood Forum by YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANASSERY.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
@@ -25,7 +25,7 @@
         </div>
         <div class="brand-text">
           <h1 class="brand-title">Yuva Blood Forum</h1>
-          <span class="brand-subtitle">Donor Profile &bull; Yuvadeepti SMYM ARCHEPARCHY OF CHANGANASSERY</span>
+          <span class="brand-subtitle">Donor Profile &bull; YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANASSERY</span>
         </div>
       </div>
 
@@ -44,45 +44,43 @@
   <main class="main-content">
     <div class="container">
 
-      <!-- VIEW 1: AUTHENTICATION / REGISTRATION / GOOGLE SIGN-IN CARD -->
+      <!-- VIEW 1: SINGLE PAGE AUTHENTICATION & REGISTRATION CARD -->
       <div id="authContainer" class="auth-card card">
         
-        <div class="tab-buttons">
-          <button class="tab-btn active" id="btnGoogleTab" onclick="profileApp.switchAuthTab('google')">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05"/>
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
-            </svg>
-            Google Sign-In
-          </button>
-          <button class="tab-btn" id="btnRegisterTab" onclick="profileApp.switchAuthTab('register')">
-            ✍️ Register Account
-          </button>
-          <button class="tab-btn" id="btnLoginTab" onclick="profileApp.switchAuthTab('login')">
-            🔑 Email Login
-          </button>
+        <h2 style="font-family:var(--font-heading); font-size:1.4rem; font-weight:700; text-align:center; margin-bottom:0.25rem;">Donor Sign In & Portal</h2>
+        <p class="form-desc" style="text-align:center; margin-bottom:1.5rem;">Sign in with Google or Email to manage your donor profile & update donation date.</p>
+
+        <!-- SECTION 1: GOOGLE SIGN-IN -->
+        <div class="google-auth-box" style="padding:0;">
+          <div id="googleSignInBtn" class="google-btn-wrapper" style="margin:0 0 1rem 0;"></div>
         </div>
 
-        <!-- TAB A: GOOGLE SIGN-IN -->
-        <div id="tabGoogle" class="auth-tab-content">
-          <div class="google-auth-box">
-            <h3>Sign in with Google</h3>
-            <p class="form-desc">Quickly sign in with your Google Account to manage your donor profile and update your last donation date.</p>
-            
-            <div id="googleSignInBtn" class="google-btn-wrapper"></div>
+        <div class="divider"><span>OR SIGN IN WITH EMAIL</span></div>
 
-            <div class="divider"><span>OR SIGN IN WITH ONE-CLICK DEMO</span></div>
-            <button class="btn btn-outline btn-block" onclick="profileApp.demoGoogleLogin()">
-              🚀 Quick Demo Sign-In
-            </button>
+        <!-- SECTION 2: EMAIL LOGIN FORM -->
+        <form onsubmit="profileApp.handleEmailLogin(event)">
+          <div class="form-group">
+            <label for="loginEmail">Email Address</label>
+            <input type="email" id="loginEmail" placeholder="yourname@gmail.com" required>
           </div>
-        </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter password" required>
+          </div>
+          <div id="loginError" class="alert alert-danger hidden"></div>
+          <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">🔑 Sign In with Email</button>
+        </form>
 
-        <!-- TAB B: NEW USER REGISTRATION -->
-        <div id="tabRegister" class="auth-tab-content hidden">
-          <h3>Create New Donor Profile</h3>
+        <div class="divider"><span>DON'T HAVE AN ACCOUNT?</span></div>
+
+        <!-- SECTION 3: REGISTER NEW DONOR TOGGLE -->
+        <button class="btn btn-outline btn-block" id="toggleRegBtn" onclick="profileApp.toggleRegistrationForm()">
+          ✍️ Create New Donor Profile
+        </button>
+
+        <!-- REGISTRATION FORM (COLLAPSIBLE / INLINE ON SAME PAGE) -->
+        <div id="tabRegister" class="auth-tab-content hidden" style="margin-top: 1.5rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+          <h3>New Donor Registration</h3>
           <p class="form-desc">Fill in your details below to register as an active blood donor.</p>
 
           <form onsubmit="profileApp.handleRegister(event)">
@@ -122,7 +120,7 @@
                 <option value="">-- Select Zone --</option>
                 <option value="Kottayam Zone">Kottayam Zone</option>
                 <option value="Changanacherry Zone">Changanacherry Zone</option>
-                <option value="Alapuzha Zone">Alapuzha Zone</option>
+                <option value="Alappuzha Zone">Alappuzha Zone</option>
                 <option value="Kuttanad Zone">Kuttanad Zone</option>
                 <option value="Kollam-ayoor Zone">Kollam-ayoor Zone</option>
                 <option value="Trivandrum Zone">Trivandrum Zone</option>
@@ -159,25 +157,6 @@
             </div>
             <div id="regError" class="alert alert-danger hidden"></div>
             <button type="submit" id="regSubmitBtn" class="btn btn-primary btn-block">Complete Registration</button>
-          </form>
-        </div>
-
-        <!-- TAB C: EMAIL LOGIN -->
-        <div id="tabLogin" class="auth-tab-content hidden">
-          <h3>Email Sign In</h3>
-          <p class="form-desc">Sign in with your registered email address and password.</p>
-
-          <form onsubmit="profileApp.handleEmailLogin(event)">
-            <div class="form-group">
-              <label for="loginEmail">Email Address</label>
-              <input type="email" id="loginEmail" placeholder="yourname@gmail.com" required>
-            </div>
-            <div class="form-group">
-              <label for="loginPassword">Password</label>
-              <input type="password" id="loginPassword" placeholder="Enter password" required>
-            </div>
-            <div id="loginError" class="alert alert-danger hidden"></div>
-            <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">Sign In</button>
           </form>
         </div>
 
@@ -264,7 +243,7 @@
                 <select id="profileZone" required>
                   <option value="Kottayam Zone">Kottayam Zone</option>
                   <option value="Changanacherry Zone">Changanacherry Zone</option>
-                  <option value="Alapuzha Zone">Alapuzha Zone</option>
+                  <option value="Alappuzha Zone">Alappuzha Zone</option>
                   <option value="Kuttanad Zone">Kuttanad Zone</option>
                   <option value="Kollam-ayoor Zone">Kollam-ayoor Zone</option>
                   <option value="Trivandrum Zone">Trivandrum Zone</option>
@@ -317,7 +296,7 @@
 
   <footer class="footer">
     <div class="container">
-      <p>&copy; 2026 Yuva Blood Forum by Yuvadeepti SMYM ARCHEPARCHY OF CHANGANASSERY</p>
+      <p>&copy; 2026 Yuva Blood Forum by YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANASSERY</p>
       <p style="margin-top: 0.35rem; font-size: 0.825rem; font-weight: 600; color: var(--text-muted);">
         Powered by <span style="color: var(--primary);">ÉclatTech Technologies</span>
       </p>
