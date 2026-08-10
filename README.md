@@ -1,4 +1,4 @@
-# Yuva Blood Forum by Yuvadeepti-SMYM Archeparchy of Changanassery
+# Yuva Blood Forum by Yuvadeepti-SMYM ARCHEPARCHY OF CHANGANASSERY
 
 An ultra-lightweight, high-performance blood donor and data search portal powered by Node.js, Express, and PostgreSQL (Neon DB).
 
