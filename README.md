@@ -1,4 +1,4 @@
-# Yuva Blood Forum by Yuvadeepti-SMYM ARCHEPARCHY OF CHANGANASSERY
+# Yuva Blood Forum by Yuvadeepti SMYM ARCHEPARCHY OF CHANGANASSERY
 
 An ultra-lightweight, high-performance blood donor and data search portal powered by Node.js, Express, and PostgreSQL (Neon DB).
 
@@ -7,10 +7,10 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
 ## Features
 
 - **Ultra-Fast & Lightweight**: Pure Vanilla HTML5/CSS3/JS frontend under 40 KB asset footprint for instant loading.
-- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, and **Forona (ഫൊറോന)**.
+- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, and **Forane (ഫൊറോന)**.
 - **Eligible Age Restriction**: Automatically filters public searches to show only eligible donors (**Ages 18 to 55**).
 - **Donation Tracking & Cooling Period**: Option to mark donation completion in Admin portal, enforcing a 90-day cooling period.
-- **Admin Analytics Breakdown**: Real-time stats and visual progress breakdowns by **Zone**, **Forona**, and **Blood Group**.
+- **Admin Analytics Breakdown**: Real-time stats and visual progress breakdowns by **Zone**, **Forane**, and **Blood Group**.
 - **One-Click Contact Actions**: Automatic phone number detection with direct Call (`tel:`) and WhatsApp (`wa.me`) action buttons.
 - **Dedicated Admin Portal (`admin.html`)**:
   - Pre-seeded admin authentication with password hashing (`bcryptjs`).
@@ -46,6 +46,8 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
    DATABASE_URL=postgresql://neondb_owner:your_db_credentials@ep-icy-wind-aztndqrb.c-3.ap-southeast-1.aws.neon.tech/neondb?sslmode=require
    SESSION_SECRET=your_secure_session_secret
    PORT=3000
+   GOOGLE_CLIENT_ID=your_google_client_id
+   GOOGLE_CLIENT_SECRET=your_google_client_secret
    ```
 
 4. Start the Application:
@@ -59,17 +61,11 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
 
 ## Admin Credentials
 
-- **Default Username**: `smymChry@blood`
-- **Default Password**: `It'sAdmin@2026`
-
-*Admin credentials can be changed after logging into the Admin Portal.*
+- **Username**: `smymChry@blood`
+- **Password**: `It'sAdmin@2026`
 
 ---
 
-## Credits
+## License & Attribution
 
-Powered by **ÉclatTech Technologies**
-
-## License
-
-MIT License
+Developed by **ÉclatTech Technologies** for **Yuvadeepti SMYM ARCHEPARCHY OF CHANGANASSERY**.

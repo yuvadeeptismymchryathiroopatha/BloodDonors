@@ -127,14 +127,22 @@ class App {
       options: combinedBloodGroups
     });
 
-    // 3. Forona Filter (ഫൊറോന)
-    const foronaOptions = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|ഫൊറോന/i);
+    // 3. Forane Filter (ഫൊറോന)
+    const defaultForanes = [
+      'Kottayam', 'Athirampuzha', 'Kudamaloor', 'Muhamma', 'Manimala', 
+      'Nedumkunnam', 'Kurumpanadom', 'Thrickodithanam', 'Thuruthy', 'Changanacherry', 
+      'Edathua', 'Pulincunno', 'Champakulam', 'Chenganoor', 'Alappuzha', 
+      'Kollam-Ayoor', 'Trivandrum', 'Amboori'
+    ];
+    const uploadedForanes = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|forane|ഫൊറോന/i);
+    const combinedForanes = Array.from(new Set([...defaultForanes, ...uploadedForanes])).sort();
+
     this.createSelectFilterGroup({
       container,
       columnKey: foronaKey,
-      label: '🏛️ Forona (ഫൊറോന)',
-      placeholder: 'All Foronas (എല്ലാ ഫൊറോനയും)',
-      options: foronaOptions
+      label: '🏛️ Forane (ഫൊറോന)',
+      placeholder: 'All Foranes (എല്ലാ ഫൊറോനയും)',
+      options: combinedForanes
     });
 
     this.toggleResetButton();

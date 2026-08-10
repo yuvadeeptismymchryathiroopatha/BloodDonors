@@ -176,7 +176,7 @@ class ProfileApp {
     const phone = document.getElementById('regPhone').value;
     const bloodGroup = document.getElementById('regBloodGroup').value;
     const zone = document.getElementById('regZone').value;
-    const forona = document.getElementById('regForona').value;
+    const forona = document.getElementById('regForane').value;
     const age = document.getElementById('regAge').value;
     const errorEl = document.getElementById('regError');
     const submitBtn = document.getElementById('regSubmitBtn');
@@ -278,7 +278,8 @@ class ProfileApp {
     document.getElementById('profilePhone').value = user.phone || '';
     document.getElementById('profileBloodGroup').value = user.bloodGroup || 'O+';
     document.getElementById('profileZone').value = user.zone || 'Changanacherry Zone';
-    document.getElementById('profileForona').value = user.forona || '';
+    const profileForaneEl = document.getElementById('profileForane');
+    if (profileForaneEl) profileForaneEl.value = user.forona || 'Changanacherry';
     document.getElementById('profileAge').value = user.age || '';
 
     // Donation Date
@@ -370,7 +371,7 @@ class ProfileApp {
     const phone = document.getElementById('profilePhone').value;
     const bloodGroup = document.getElementById('profileBloodGroup').value;
     const zone = document.getElementById('profileZone').value;
-    const forona = document.getElementById('profileForona').value;
+    const forona = document.getElementById('profileForane').value;
     const age = document.getElementById('profileAge').value;
     const alertEl = document.getElementById('profileAlert');
     const saveBtn = document.getElementById('saveProfileBtn');
