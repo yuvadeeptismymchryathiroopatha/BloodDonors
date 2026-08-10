@@ -441,21 +441,21 @@ class BloodDonorApp {
 
       <div class="donor-card-actions">
         ${isAvailable && cleanPhone ? `
-          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm">
+          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm btn-contact">
             📞 Call
           </a>
-          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
+          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm btn-contact">
             💬 WhatsApp
           </a>
         ` : (cleanPhone ? `
-          <button type="button" class="btn btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
-            📞 Call (Disabled)
+          <button type="button" class="btn btn-outline btn-sm btn-contact" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
+            📞 Call
           </button>
-          <button type="button" class="btn btn-primary btn-sm" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
-            💬 WhatsApp (Disabled)
+          <button type="button" class="btn btn-primary btn-sm btn-contact" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
+            💬 WhatsApp
           </button>
         ` : `
-          <span class="text-muted" style="font-size:0.8rem;">No direct contact listed</span>
+          <span class="text-muted contact-missing">No direct contact listed</span>
         `)}
       </div>
     `;
