@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blood Donors & Data Portal</title>
+  <meta name="description" content="Ultra-fast, lightweight public data search and blood donor directory portal.">
+  <!-- Google Fonts: Inter & Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Bloodrupatha</h1>
+          <span class="brand-subtitle">Public Search Directory</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <div id="adminBadge" class="admin-badge hidden">
+          <span class="admin-badge-icon">🛡️</span>
+          <span id="adminUsername">Admin</span>
+        </div>
+        <button id="adminBtn" class="btn btn-outline btn-sm" onclick="app.toggleAdminModal()">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="adminBtnText">Admin Portal</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Hero & Search Section -->
+  <main class="main-content">
+    <div class="container">
+
+      <!-- Hero Header -->
+      <div class="hero-banner">
+        <h2 class="hero-title">Find Information Fast</h2>
+        <p class="hero-desc">Search through donor records and data instantly using filters below</p>
+      </div>
+
+      <!-- Search & Dynamic Filters Card -->
+      <section class="search-card card">
+        <div class="search-bar-wrapper">
+          <div class="search-input-box">
+            <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input type="text" id="searchInput" placeholder="Search by name, phone, area, or keyword..." autocomplete="off">
+            <button id="clearSearchBtn" class="btn-clear hidden" title="Clear Search">&times;</button>
+          </div>
+          <button id="searchBtn" class="btn btn-primary">Search</button>
+        </div>
+
+        <!-- Dynamic Dropdown Filters -->
+        <div id="filterControlsContainer" class="filters-grid">
+          <!-- Dynamic select dropdowns will be rendered here by JS -->
+        </div>
+
+        <div class="filter-actions hidden" id="filterActions">
+          <button class="btn-text" onclick="app.resetFilters()">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+            Reset All Filters
+          </button>
+        </div>
+      </section>
+
+      <!-- Results Meta Header -->
+      <section class="results-header">
+        <div class="results-info">
+          <span class="results-count" id="resultsCount">Loading records...</span>
+          <span class="dataset-meta" id="datasetMeta"></span>
+        </div>
+        <div class="records-per-page">
+          <label for="limitSelect">Show:</label>
+          <select id="limitSelect" onchange="app.changeLimit(this.value)">
+            <option value="12" selected>12 per page</option>
+            <option value="24">24 per page</option>
+            <option value="48">48 per page</option>
+          </select>
+        </div>
+      </section>
+
+      <!-- Results Grid Container -->
+      <section id="resultsContainer" class="results-grid">
+        <!-- Cards inserted dynamically -->
+      </section>
+
+      <!-- Pagination -->
+      <nav id="paginationContainer" class="pagination-wrapper hidden">
+        <button id="prevPageBtn" class="btn btn-outline btn-sm" onclick="app.changePage(-1)">
+          &larr; Previous
+        </button>
+        <span id="pageIndicator" class="page-indicator">Page 1 of 1</span>
+        <button id="nextPageBtn" class="btn btn-outline btn-sm" onclick="app.changePage(1)">
+          Next &rarr;
+        </button>
+      </nav>
+
+    </div>
+  </main>
+
+  <!-- Admin Modal / Portal -->
+  <div id="adminModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-title-icon">🔐</span>
+          <h3 id="modalHeaderTitle">Admin Portal</h3>
+        </div>
+        <button class="modal-close" onclick="app.closeAdminModal()">&times;</button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- LOGIN FORM (When NOT Logged In) -->
+        <div id="loginFormContainer" class="admin-view">
+          <p class="form-desc">Please log in with your administrator credentials to upload CSV data or change settings.</p>
+          <form id="loginForm" onsubmit="app.handleLogin(event)">
+            <div class="form-group">
+              <label for="loginUsername">Admin Username</label>
+              <input type="text" id="loginUsername" placeholder="e.g. smymChry@blood" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="loginPassword">Password</label>
+              <input type="password" id="loginPassword" placeholder="Enter password" required autocomplete="current-password">
+            </div>
+            <div id="loginError" class="alert alert-danger hidden"></div>
+            <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">Log In</button>
+          </form>
+        </div>
+
+        <!-- ADMIN DASHBOARD (When Logged In) -->
+        <div id="adminDashboardContainer" class="admin-view hidden">
+          <!-- Admin Tabs -->
+          <div class="tab-buttons">
+            <button class="tab-btn active" id="tabUploadBtn" onclick="app.switchAdminTab('upload')">
+              📤 Upload CSV
+            </button>
+            <button class="tab-btn" id="tabSettingsBtn" onclick="app.switchAdminTab('settings')">
+              🔑 Change Credentials
+            </button>
+          </div>
+
+          <!-- TAB 1: CSV UPLOAD -->
+          <div id="tabUpload" class="tab-content">
+            <div class="upload-zone" id="dropZone">
+              <div class="upload-icon">📁</div>
+              <p class="upload-title">Drag & Drop CSV file here</p>
+              <p class="upload-subtitle">or click to browse from your computer</p>
+              <input type="file" id="csvFileInput" accept=".csv" class="file-input" onchange="app.handleFileSelect(event)">
+              <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvFileInput').click()">Select CSV File</button>
+            </div>
+
+            <div id="selectedFileInfo" class="file-info hidden">
+              <span class="file-icon">📄</span>
+              <span id="fileName" class="file-name">filename.csv</span>
+              <button id="uploadBtn" class="btn btn-primary btn-sm" onclick="app.uploadCSV()">Upload & Import</button>
+            </div>
+
+            <div id="uploadProgress" class="progress-bar-container hidden">
+              <div class="progress-bar" id="progressBar"></div>
+              <span class="progress-text" id="progressText">Processing CSV data...</span>
+            </div>
+
+            <div id="uploadStatus" class="alert hidden"></div>
+
+            <div class="dataset-management card">
+              <h4>Dataset Actions</h4>
+              <div class="dataset-stats" id="adminDatasetStats">
+                Loading database info...
+              </div>
+              <div class="dataset-btn-row">
+                <button class="btn btn-danger btn-sm" onclick="app.confirmClearData()">
+                  🗑️ Delete / Clear All Data
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: CHANGE CREDENTIALS -->
+          <div id="tabSettings" class="tab-content hidden">
+            <p class="form-desc">Update your administrator username and password securely.</p>
+            <form id="changeCredsForm" onsubmit="app.handleChangeCredentials(event)">
+              <div class="form-group">
+                <label for="currentPassword">Current Password <span class="required">*</span></label>
+                <input type="password" id="currentPassword" placeholder="Enter current password" required>
+              </div>
+
+              <div class="form-group">
+                <label for="newUsername">New Username (Optional)</label>
+                <input type="text" id="newUsername" placeholder="Leave blank to keep current username">
+              </div>
+
+              <div class="form-group">
+                <label for="newPassword">New Password (Optional)</label>
+                <input type="password" id="newPassword" placeholder="Minimum 6 characters">
+              </div>
+
+              <div class="form-group">
+                <label for="confirmNewPassword">Confirm New Password</label>
+                <input type="password" id="confirmNewPassword" placeholder="Repeat new password">
+              </div>
+
+              <div id="settingsAlert" class="alert hidden"></div>
+
+              <button type="submit" id="saveCredsBtn" class="btn btn-primary btn-block">Save New Credentials</button>
+            </form>
+          </div>
+
+          <!-- Footer Actions -->
+          <div class="modal-footer">
+            <button class="btn btn-outline btn-sm" onclick="app.logoutAdmin()">Log Out Admin</button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Bloodrupatha Portal &bull; Light, Secure & Accessible</p>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
