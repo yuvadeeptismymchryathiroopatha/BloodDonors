@@ -32,6 +32,43 @@ async function initDb() {
       );
     `);
 
+    // Create users table (for Google Sign-In & Registered Donors)
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        google_id VARCHAR(255),
+        email VARCHAR(255) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255),
+        picture VARCHAR(500),
+        phone VARCHAR(50),
+        blood_group VARCHAR(10),
+        zone VARCHAR(100),
+        forona VARCHAR(100),
+        age INT,
+        last_donation_date DATE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+    `);
+
+    // Fix legacy constraints and ensure all columns exist
+    await client.query(`
+      ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+      ALTER TABLE users ALTER COLUMN username DROP NOT NULL;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS picture VARCHAR(500);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(50);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS zone VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS forona VARCHAR(100);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS age INT;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_donation_date DATE;
+    `);
+
     // Create data_records table
     await client.query(`
       CREATE TABLE IF NOT EXISTS data_records (

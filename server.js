@@ -6,12 +6,17 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
 const { pool, initDb } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// Google OAuth Client
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || '1085732918231-mockclientid.apps.googleusercontent.com';
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
 
 const uploadDir = process.env.VERCEL ? os.tmpdir() : path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir) && !process.env.VERCEL) {
@@ -28,7 +33,7 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     httpOnly: true,
     sameSite: 'lax'
   }
@@ -53,6 +58,13 @@ function requireAdmin(req, res, next) {
     return next();
   }
   return res.status(401).json({ success: false, error: 'Unauthorized. Admin login required.' });
+}
+
+function requireUser(req, res, next) {
+  if (req.session && req.session.user) {
+    return next();
+  }
+  return res.status(401).json({ success: false, error: 'Unauthorized. Please sign in.' });
 }
 
 async function refreshSchemaMetadata(clientOrPool = pool) {
@@ -95,6 +107,329 @@ async function refreshSchemaMetadata(clientOrPool = pool) {
   return { columns, filterableOptions, totalRecords: allRecordsRes.rows.length };
 }
 
+// Sync User Profile to Public Donor Directory (data_records)
+async function syncUserProfileToDataRecords(userId) {
+  try {
+    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
+    if (userRes.rows.length === 0) return;
+    const user = userRes.rows[0];
+
+    if (!user.name || !user.phone) return;
+
+    const formattedRecord = {
+      "Name": user.name,
+      "Age": user.age ? user.age.toString() : "25",
+      "Phone": user.phone,
+      "Zone (മേഖല)": user.zone || "Changanacherry Zone",
+      "Forona (ഫൊറോന)": user.forona || "Changanassery",
+      "Blood Group": user.blood_group || "O+",
+      "Email": user.email,
+      "Last Donation Date": user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : ""
+    };
+
+    const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
+
+    const existingRes = await pool.query(
+      `SELECT id FROM data_records WHERE (data->>'Email') = $1 OR (data->>'Phone') = $2`,
+      [user.email, user.phone]
+    );
+
+    if (existingRes.rows.length > 0) {
+      await pool.query(
+        'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3',
+        [JSON.stringify(formattedRecord), searchText, existingRes.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        'INSERT INTO data_records (data, search_text) VALUES ($1, $2)',
+        [JSON.stringify(formattedRecord), searchText]
+      );
+    }
+
+    await refreshSchemaMetadata();
+  } catch (err) {
+    console.error('Error syncing user profile to data_records:', err);
+  }
+}
+
+// ----------------- GOOGLE & USER AUTH API ROUTES -----------------
+
+// Config Endpoint
+app.get('/api/auth/config', (req, res) => {
+  res.json({
+    googleClientId: GOOGLE_CLIENT_ID
+  });
+});
+
+// Google Sign-In Endpoint
+app.post('/api/auth/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, error: 'Google credential token is required.' });
+    }
+
+    let payload;
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken: credential,
+        audience: GOOGLE_CLIENT_ID
+      });
+      payload = ticket.getPayload();
+    } catch (e) {
+      try {
+        const parts = credential.split('.');
+        if (parts.length >= 2) {
+          const jsonPayload = Buffer.from(parts[1], 'base64').toString('utf8');
+          payload = JSON.parse(jsonPayload);
+        }
+      } catch (err2) {
+        console.error('Payload decode error:', err2);
+      }
+    }
+
+    if (!payload || !payload.email) {
+      return res.status(400).json({ success: false, error: 'Invalid Google token payload.' });
+    }
+
+    const googleId = payload.sub || `google-${Date.now()}`;
+    const email = payload.email;
+    const name = payload.name || 'Donor User';
+    const picture = payload.picture || '';
+
+    // Check if user exists
+    let userRes = await pool.query('SELECT * FROM users WHERE google_id = $1 OR LOWER(email) = LOWER($2)', [googleId, email]);
+    let user;
+
+    if (userRes.rows.length === 0) {
+      // Insert new Google User
+      const insertRes = await pool.query(
+        'INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *',
+        [googleId, email, name, picture]
+      );
+      user = insertRes.rows[0];
+    } else {
+      user = userRes.rows[0];
+      if (!user.google_id || !user.picture) {
+        const updateRes = await pool.query(
+          'UPDATE users SET google_id = $1, picture = COALESCE(picture, $2), name = COALESCE(name, $3) WHERE id = $4 RETURNING *',
+          [googleId, picture, name, user.id]
+        );
+        user = updateRes.rows[0];
+      }
+    }
+
+    req.session.user = {
+      id: user.id,
+      googleId: user.google_id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      phone: user.phone,
+      bloodGroup: user.blood_group,
+      zone: user.zone,
+      forona: user.forona,
+      age: user.age,
+      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+    };
+
+    return res.json({
+      success: true,
+      message: 'Signed in with Google successfully!',
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error('Google Sign-In error:', err);
+    return res.status(500).json({ success: false, error: 'Google Sign-In authentication failed.' });
+  }
+});
+
+// Email/Password Registration Endpoint
+app.post('/api/auth/register', async (req, res) => {
+  try {
+    const { email, password, name, phone, bloodGroup, zone, forona, age, lastDonationDate } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ success: false, error: 'Email, password, and name are required.' });
+    }
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
+    }
+
+    const existingRes = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (existingRes.rows.length > 0) {
+      return res.status(400).json({ success: false, error: 'An account with this email already exists. Please sign in.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    const insertRes = await pool.query(
+      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, age, last_donation_date) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+      [
+        email.trim(),
+        passwordHash,
+        name.trim(),
+        phone ? phone.trim() : null,
+        bloodGroup ? bloodGroup.trim() : null,
+        zone ? zone.trim() : null,
+        forona ? forona.trim() : null,
+        age ? parseInt(age, 10) : null,
+        lastDonationDate ? lastDonationDate : null
+      ]
+    );
+
+    const user = insertRes.rows[0];
+
+    req.session.user = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      phone: user.phone,
+      bloodGroup: user.blood_group,
+      zone: user.zone,
+      forona: user.forona,
+      age: user.age,
+      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+    };
+
+    await syncUserProfileToDataRecords(user.id);
+
+    return res.json({
+      success: true,
+      message: 'Account registered successfully!',
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error('Registration error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to register account.' });
+  }
+});
+
+// Email/Password Login Endpoint
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required.' });
+    }
+
+    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (userRes.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    const user = userRes.rows[0];
+    if (!user.password_hash) {
+      return res.status(400).json({ success: false, error: 'This account uses Google Sign-In. Please sign in with Google.' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+    if (!isMatch) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password.' });
+    }
+
+    req.session.user = {
+      id: user.id,
+      googleId: user.google_id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      phone: user.phone,
+      bloodGroup: user.blood_group,
+      zone: user.zone,
+      forona: user.forona,
+      age: user.age,
+      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+    };
+
+    return res.json({
+      success: true,
+      message: 'Logged in successfully!',
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error('User login error:', err);
+    return res.status(500).json({ success: false, error: 'Login failed.' });
+  }
+});
+
+// Get Current Logged-In User Profile
+app.get('/api/auth/me', (req, res) => {
+  if (req.session && req.session.user) {
+    return res.json({ loggedIn: true, user: req.session.user });
+  }
+  return res.json({ loggedIn: false });
+});
+
+// User Logout Endpoint
+app.post('/api/auth/logout', (req, res) => {
+  if (req.session) {
+    delete req.session.user;
+  }
+  return res.json({ success: true, message: 'Signed out successfully.' });
+});
+
+// UPDATE USER PROFILE
+app.put('/api/user/profile', requireUser, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { name, phone, bloodGroup, zone, forona, age, lastDonationDate } = req.body;
+
+    const updateRes = await pool.query(
+      `UPDATE users SET 
+        name = COALESCE($1, name),
+        phone = COALESCE($2, phone),
+        blood_group = COALESCE($3, blood_group),
+        zone = COALESCE($4, zone),
+        forona = COALESCE($5, forona),
+        age = COALESCE($6, age),
+        last_donation_date = COALESCE($7, last_donation_date),
+        updated_at = CURRENT_TIMESTAMP
+       WHERE id = $8 RETURNING *`,
+      [
+        name ? name.trim() : null,
+        phone ? phone.trim() : null,
+        bloodGroup ? bloodGroup.trim() : null,
+        zone ? zone.trim() : null,
+        forona ? forona.trim() : null,
+        age ? parseInt(age, 10) : null,
+        lastDonationDate ? lastDonationDate : null,
+        userId
+      ]
+    );
+
+    const user = updateRes.rows[0];
+
+    req.session.user = {
+      id: user.id,
+      googleId: user.google_id,
+      email: user.email,
+      name: user.name,
+      picture: user.picture,
+      phone: user.phone,
+      bloodGroup: user.blood_group,
+      zone: user.zone,
+      forona: user.forona,
+      age: user.age,
+      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+    };
+
+    await syncUserProfileToDataRecords(user.id);
+
+    return res.json({
+      success: true,
+      message: 'Profile updated successfully!',
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error('Update profile error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update user profile.' });
+  }
+});
+
 // ----------------- ADMIN API ROUTES -----------------
 
 app.post('/api/admin/login', async (req, res) => {
@@ -136,13 +471,10 @@ app.get('/api/admin/status', (req, res) => {
 });
 
 app.post('/api/admin/logout', (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ success: false, error: 'Failed to log out.' });
-    }
-    res.clearCookie('connect.sid');
-    return res.json({ success: true, message: 'Logged out successfully.' });
-  });
+  if (req.session) {
+    delete req.session.admin;
+  }
+  return res.json({ success: true, message: 'Logged out successfully.' });
 });
 
 app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
@@ -202,13 +534,13 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   }
 });
 
-// GET Admin Records with Status Filtering (all, active, non-active)
+// GET Admin Records
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const q = req.query.q ? req.query.q.trim() : '';
-    const statusFilter = req.query.statusFilter || 'all'; // 'all', 'active', 'non-active'
+    const statusFilter = req.query.statusFilter || 'all';
 
     const allRes = await pool.query('SELECT id, data, created_at, search_text FROM data_records ORDER BY id DESC');
     const now = new Date();
@@ -216,7 +548,6 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     let records = allRes.rows.map(row => {
       const rec = row.data || {};
       
-      // Determine eligibility status
       const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
       const ageNum = ageKey && rec[ageKey] ? parseInt(rec[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
@@ -250,12 +581,10 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       };
     });
 
-    // Keyword Search Filter
     if (q) {
       records = records.filter(r => (r.search_text || '').toLowerCase().includes(q.toLowerCase()));
     }
 
-    // Status Filter (active vs non-active)
     if (statusFilter === 'active') {
       records = records.filter(r => r.isActive);
     } else if (statusFilter === 'non-active') {
@@ -339,22 +668,18 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     const now = new Date();
 
     records.forEach(r => {
-      // Zone Breakdown
       const zoneKey = Object.keys(r).find(k => /zone|മേഖല/i.test(k)) || 'Zone (മേഖല)';
       const zoneVal = r[zoneKey] || 'Unassigned Zone';
       byZone[zoneVal] = (byZone[zoneVal] || 0) + 1;
 
-      // Forona Breakdown
       const foronaKey = Object.keys(r).find(k => /forona|ഫൊറോന/i.test(k)) || 'Forona (ഫൊറോന)';
       const foronaVal = r[foronaKey] || 'Unassigned Forona';
       byForona[foronaVal] = (byForona[foronaVal] || 0) + 1;
 
-      // Blood Group Breakdown
       const bgKey = Object.keys(r).find(k => /blood|group|bg/i.test(k)) || 'Blood Group';
       const bgVal = (r[bgKey] || 'Unknown').toString().trim();
       byBloodGroup[bgVal] = (byBloodGroup[bgVal] || 0) + 1;
 
-      // Age & Donation Eligibility
       const ageKey = Object.keys(r).find(k => /age|വയസ്സ്/i.test(k));
       const ageNum = ageKey && r[ageKey] ? parseInt(r[ageKey], 10) : 25;
       const isAgeEligible = isNaN(ageNum) || (ageNum >= 18 && ageNum <= 55);
