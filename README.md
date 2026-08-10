@@ -2,18 +2,21 @@
 
 An ultra-lightweight, high-performance blood donor and data search portal powered by Node.js, Express, and PostgreSQL (Neon DB).
 
+**Powered by ÉclatTech Technologies**
+
 ## Features
 
 - **Ultra-Fast & Lightweight**: Pure Vanilla HTML5/CSS3/JS frontend under 40 KB asset footprint for instant loading.
-- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, **Forona (ഫൊറോന)**, and **Unit (യൂണിറ്റ്)**.
+- **Dynamic Search & Filtering**: Real-time keyword search bar and dynamic dropdown filters for **Zone (മേഖല)**, **Blood Group (രക്തഗ്രൂപ്പ്)**, and **Forona (ഫൊറോന)**.
 - **Eligible Age Restriction**: Automatically filters public searches to show only eligible donors (**Ages 18 to 55**).
+- **Donation Tracking & Cooling Period**: Option to mark donation completion in Admin portal, enforcing a 90-day cooling period.
+- **Admin Analytics Breakdown**: Real-time stats and visual progress breakdowns by **Zone**, **Forona**, and **Blood Group**.
 - **One-Click Contact Actions**: Automatic phone number detection with direct Call (`tel:`) and WhatsApp (`wa.me`) action buttons.
 - **Dedicated Admin Portal (`admin.html`)**:
   - Pre-seeded admin authentication with password hashing (`bcryptjs`).
   - Interactive Admin Data Table with inline editing, single delete, and multi-select bulk delete.
   - Drag-and-drop CSV file importer with live processing status.
   - Option to update Admin username and password after login.
-- **PostgreSQL Database**: Configured for Neon serverless PostgreSQL connection with SSL support.
 
 ---
 
@@ -62,6 +65,10 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
 *Admin credentials can be changed after logging into the Admin Portal.*
 
 ---
+
+## Credits
+
+Powered by **ÉclatTech Technologies**
 
 ## License
 
