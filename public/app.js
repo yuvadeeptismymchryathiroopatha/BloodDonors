@@ -440,16 +440,23 @@ class BloodDonorApp {
       </div>
 
       <div class="donor-card-actions">
-        ${cleanPhone ? `
-          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm ${!isAvailable ? 'btn-faded' : ''}">
+        ${isAvailable && cleanPhone ? `
+          <a href="tel:${cleanPhone}" class="btn btn-outline btn-sm">
             📞 Call
           </a>
-          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm ${!isAvailable ? 'btn-faded' : ''}">
+          <a href="https://wa.me/${waPhone}" target="_blank" rel="noopener" class="btn btn-primary btn-sm">
             💬 WhatsApp
           </a>
+        ` : (cleanPhone ? `
+          <button type="button" class="btn btn-outline btn-sm" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
+            📞 Call (Disabled)
+          </button>
+          <button type="button" class="btn btn-primary btn-sm" disabled style="opacity:0.5; cursor:not-allowed;" title="Contact disabled for non-eligible donor">
+            💬 WhatsApp (Disabled)
+          </button>
         ` : `
           <span class="text-muted" style="font-size:0.8rem;">No direct contact listed</span>
-        `}
+        `)}
       </div>
     `;
 
