@@ -1,5 +1,6 @@
 /**
- * Bloodrupatha - Lightweight Search & Admin Portal App Logic
+ * Bloodrupatha - Public Search Directory Application Logic
+ * Only permits filtering by Blood Group, Forona (ഫൊറോന), and Unit (യൂണിറ്റ്).
  */
 
 class App {
@@ -14,20 +15,11 @@ class App {
     this.currentPage = 1;
     this.limit = 12;
 
-    // Admin State
-    this.isAdminLoggedIn = false;
-    this.adminUsername = '';
-    this.selectedCSVFile = null;
-    this.adminCurrentPage = 1;
-    this.adminSearchQuery = '';
-    this.adminRecordsMap = {};
-
     this.init();
   }
 
   async init() {
     this.bindEvents();
-    await this.checkAdminStatus();
     await this.loadSchema();
     await this.performSearch();
   }
@@ -79,35 +71,9 @@ class App {
         this.performSearch();
       });
     }
-
-    const dropZone = document.getElementById('dropZone');
-    if (dropZone) {
-      ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-        }, false);
-      });
-
-      ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.add('hover'), false);
-      });
-
-      ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, () => dropZone.classList.remove('hover'), false);
-      });
-
-      dropZone.addEventListener('drop', (e) => {
-        const dt = e.dataTransfer;
-        const files = dt.files;
-        if (files.length > 0) {
-          this.setCSVFile(files[0]);
-        }
-      });
-    }
   }
 
-  // --- SCHEMA & FILTER CONTROLS ---
+  // --- PUBLIC SCHEMA & FILTER CONTROLS ---
 
   async loadSchema() {
     try {
@@ -126,7 +92,6 @@ class App {
 
   renderFilterControls() {
     const container = document.getElementById('filterControlsContainer');
-    const filterActions = document.getElementById('filterActions');
     if (!container) return;
 
     container.innerHTML = '';
@@ -134,15 +99,16 @@ class App {
     const filterableOpts = this.schema.filterableOptions || {};
     const columns = this.schema.columns || [];
 
+    // Locate Exact/Alias Keys
     const bloodGroupKey = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
-    const districtKey = columns.find(c => /district|dist/i.test(c)) || 'District';
-    const foronaKey = columns.find(c => /unit|forona|ഫൊറോന/i.test(c)) || 'Unit / Forona (ഫൊറോന)';
+    const foronaKey = columns.find(c => /forona|ഫൊറോന/i.test(c)) || 'Forona (ഫൊറോന)';
+    const unitKey = columns.find(c => /unit|യൂണിറ്റ്/i.test(c)) || 'Unit (യൂണിറ്റ്)';
 
     const defaultBloodGroups = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
     const uploadedBloodGroups = filterableOpts[bloodGroupKey] || [];
     const combinedBloodGroups = Array.from(new Set([...defaultBloodGroups, ...uploadedBloodGroups])).sort();
 
-    // 1. Blood Group Filter
+    // 1. Blood Group Filter (രക്തഗ്രൂപ്പ്)
     this.createSelectFilterGroup({
       container,
       columnKey: bloodGroupKey,
@@ -151,40 +117,24 @@ class App {
       options: combinedBloodGroups
     });
 
-    // 2. District Filter
-    const districtOptions = filterableOpts[districtKey] || this.extractOptionsByRegex(/district|dist/i);
-    this.createSelectFilterGroup({
-      container,
-      columnKey: districtKey,
-      label: '📍 District (ജില്ല)',
-      placeholder: 'All Districts',
-      options: districtOptions
-    });
-
-    // 3. Unit / Forona Filter
-    const foronaOptions = filterableOpts[foronaKey] || this.extractOptionsByRegex(/unit|forona|ഫൊറോന/i);
+    // 2. Forona Filter (ഫൊറോന)
+    const foronaOptions = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|ഫൊറോന/i);
     this.createSelectFilterGroup({
       container,
       columnKey: foronaKey,
-      label: '🏛️ Unit / Forona (യൂണിറ്റ് / ഫൊറോന)',
-      placeholder: 'All Units / Foronas',
+      label: '🏛️ Forona (ഫൊറോന)',
+      placeholder: 'All Foronas (എല്ലാ ഫൊറോനയും)',
       options: foronaOptions
     });
 
-    // 4. Any additional CSV columns
-    Object.keys(filterableOpts).forEach(colName => {
-      if (/blood|group|bg|district|dist|unit|forona|ഫൊറോന/i.test(colName)) return;
-
-      const opts = filterableOpts[colName];
-      if (opts && opts.length > 0) {
-        this.createSelectFilterGroup({
-          container,
-          columnKey: colName,
-          label: colName,
-          placeholder: `All ${colName}s`,
-          options: opts
-        });
-      }
+    // 3. Unit Filter (യൂണിറ്റ്)
+    const unitOptions = filterableOpts[unitKey] || this.extractOptionsByRegex(/unit|യൂണിറ്റ്/i);
+    this.createSelectFilterGroup({
+      container,
+      columnKey: unitKey,
+      label: '🏢 Unit (യൂണിറ്റ്)',
+      placeholder: 'All Units (എല്ലാ യൂണിറ്റും)',
+      options: unitOptions
     });
 
     this.toggleResetButton();
@@ -265,29 +215,16 @@ class App {
 
   updateDatasetMeta() {
     const datasetMeta = document.getElementById('datasetMeta');
-    const adminStats = document.getElementById('adminDatasetStats');
-
     if (datasetMeta) {
       if (this.schema.totalRecords > 0) {
-        datasetMeta.textContent = `(${this.schema.totalRecords} total stored records)`;
+        datasetMeta.textContent = `(${this.schema.totalRecords} total active records)`;
       } else {
         datasetMeta.textContent = '(No dataset uploaded)';
       }
     }
-
-    if (adminStats) {
-      if (this.schema.totalRecords > 0) {
-        adminStats.innerHTML = `
-          <strong>Total Records:</strong> ${this.schema.totalRecords}<br>
-          <strong>Columns (${this.schema.columns.length}):</strong> ${this.schema.columns.join(', ')}
-        `;
-      } else {
-        adminStats.innerHTML = '<em>No records currently uploaded in the database.</em>';
-      }
-    }
   }
 
-  // --- PUBLIC DATA SEARCH & RENDERING ---
+  // --- DATA SEARCH & CARD RENDERING ---
 
   async performSearch() {
     const container = document.getElementById('resultsContainer');
@@ -297,8 +234,8 @@ class App {
     container.innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">⏳</div>
-        <h3 class="empty-title">Searching...</h3>
-        <p class="empty-desc">Fetching records from database</p>
+        <h3 class="empty-title">Searching Donors...</h3>
+        <p class="empty-desc">Fetching eligible donor records (Age 18 - 55)</p>
       </div>
     `;
 
@@ -337,17 +274,17 @@ class App {
     const paginationContainer = document.getElementById('paginationContainer');
 
     if (countEl) {
-      countEl.textContent = `${pagination.totalRecords} ${pagination.totalRecords === 1 ? 'Record' : 'Records'} Found`;
+      countEl.textContent = `${records.length} Eligible Donor(s) Found`;
     }
 
     if (!records || records.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
           <div class="empty-icon">🔍</div>
-          <h3 class="empty-title">No matching records found</h3>
-          <p class="empty-desc">Try clearing search keywords or adjusting your selected filters.</p>
+          <h3 class="empty-title">No matching eligible donors found</h3>
+          <p class="empty-desc">Try clearing search keywords or selecting different Forona / Unit filters. Note: Only donors aged 18 to 55 are displayed.</p>
           ${Object.keys(this.filters).length > 0 || this.searchQuery ? `
-            <button class="btn btn-outline btn-sm" onclick="app.resetAllSearch()">Reset Search & Filters</button>
+            <button class="btn btn-outline btn-sm" onclick="app.resetAllSearch()">Reset Filters</button>
           ` : ''}
         </div>
       `;
@@ -455,604 +392,6 @@ class App {
     this.limit = parseInt(newLimit, 10) || 12;
     this.currentPage = 1;
     this.performSearch();
-  }
-
-  // --- ADMIN AUTH & DASHBOARD TABS ---
-
-  async checkAdminStatus() {
-    try {
-      const res = await fetch('/api/admin/status');
-      const data = await res.json();
-
-      if (data.loggedIn) {
-        this.isAdminLoggedIn = true;
-        this.adminUsername = data.username;
-        this.updateAdminUI(true);
-        this.loadAdminTable();
-      } else {
-        this.isAdminLoggedIn = false;
-        this.updateAdminUI(false);
-      }
-    } catch (err) {
-      console.error('Failed to check admin status:', err);
-    }
-  }
-
-  updateAdminUI(isLoggedIn) {
-    const adminBadge = document.getElementById('adminBadge');
-    const adminUsernameEl = document.getElementById('adminUsername');
-    const adminBtnText = document.getElementById('adminBtnText');
-    const loginView = document.getElementById('loginFormContainer');
-    const dashboardView = document.getElementById('adminDashboardContainer');
-    const modalHeaderTitle = document.getElementById('modalHeaderTitle');
-
-    if (isLoggedIn) {
-      if (adminBadge) adminBadge.classList.remove('hidden');
-      if (adminUsernameEl) adminUsernameEl.textContent = this.adminUsername;
-      if (adminBtnText) adminBtnText.textContent = 'Admin Settings';
-      if (loginView) loginView.classList.add('hidden');
-      if (dashboardView) dashboardView.classList.remove('hidden');
-      if (modalHeaderTitle) modalHeaderTitle.textContent = `Admin Dashboard (${this.adminUsername})`;
-    } else {
-      if (adminBadge) adminBadge.classList.add('hidden');
-      if (adminBtnText) adminBtnText.textContent = 'Admin Portal';
-      if (loginView) loginView.classList.remove('hidden');
-      if (dashboardView) dashboardView.classList.add('hidden');
-      if (modalHeaderTitle) modalHeaderTitle.textContent = 'Admin Login';
-    }
-  }
-
-  toggleAdminModal() {
-    const modal = document.getElementById('adminModal');
-    if (modal) {
-      modal.classList.toggle('hidden');
-      if (!modal.classList.contains('hidden') && this.isAdminLoggedIn) {
-        this.loadAdminTable();
-      }
-    }
-  }
-
-  closeAdminModal() {
-    const modal = document.getElementById('adminModal');
-    if (modal) {
-      modal.classList.add('hidden');
-    }
-  }
-
-  switchAdminTab(tabName) {
-    const tableBtn = document.getElementById('tabTableBtn');
-    const uploadBtn = document.getElementById('tabUploadBtn');
-    const settingsBtn = document.getElementById('tabSettingsBtn');
-
-    const tableTab = document.getElementById('tabTable');
-    const uploadTab = document.getElementById('tabUpload');
-    const settingsTab = document.getElementById('tabSettings');
-
-    [tableBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
-    [tableTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
-
-    if (tabName === 'table') {
-      tableBtn?.classList.add('active');
-      tableTab?.classList.remove('hidden');
-      this.loadAdminTable();
-    } else if (tabName === 'upload') {
-      uploadBtn?.classList.add('active');
-      uploadTab?.classList.remove('hidden');
-    } else {
-      settingsBtn?.classList.add('active');
-      settingsTab?.classList.remove('hidden');
-    }
-  }
-
-  async handleLogin(e) {
-    e.preventDefault();
-    const usernameInput = document.getElementById('loginUsername');
-    const passwordInput = document.getElementById('loginPassword');
-    const errorEl = document.getElementById('loginError');
-    const submitBtn = document.getElementById('loginSubmitBtn');
-
-    errorEl.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Authenticating...';
-
-    try {
-      const res = await fetch('/api/admin/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: usernameInput.value,
-          password: passwordInput.value
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        this.isAdminLoggedIn = true;
-        this.adminUsername = data.username;
-        this.updateAdminUI(true);
-        this.showToast('Logged in successfully!');
-        passwordInput.value = '';
-        this.loadAdminTable();
-      } else {
-        errorEl.textContent = data.error || 'Invalid credentials.';
-        errorEl.classList.remove('hidden');
-      }
-    } catch (err) {
-      errorEl.textContent = 'Server connection error.';
-      errorEl.classList.remove('hidden');
-    } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Log In';
-    }
-  }
-
-  // --- ADMIN DATA TABLE (SEE ALL DATA, EDIT, DELETE, ADD) ---
-
-  async loadAdminTable() {
-    const tableHeadRow = document.getElementById('adminTableHeadRow');
-    const tableBody = document.getElementById('adminTableBody');
-    const indicator = document.getElementById('adminPageIndicator');
-    const prevBtn = document.getElementById('adminPrevBtn');
-    const nextBtn = document.getElementById('adminNextBtn');
-
-    if (!tableHeadRow || !tableBody) return;
-
-    tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:2rem;">⏳ Loading database records...</td></tr>`;
-
-    try {
-      const queryParams = new URLSearchParams({
-        page: this.adminCurrentPage,
-        limit: 15,
-        q: this.adminSearchQuery
-      });
-
-      const res = await fetch(`/api/admin/records?${queryParams.toString()}`);
-      const data = await res.json();
-
-      if (!data.success) throw new Error(data.error);
-
-      const records = data.records || [];
-      const columns = this.schema.columns || (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
-
-      // 1. Build Header
-      let headHtml = `<th>#</th>`;
-      columns.forEach(col => {
-        headHtml += `<th>${this.escapeHtml(col)}</th>`;
-      });
-      headHtml += `<th style="text-align:right;">Actions</th>`;
-      tableHeadRow.innerHTML = headHtml;
-
-      // 2. Build Rows
-      if (records.length === 0) {
-        tableBody.innerHTML = `<tr><td colspan="${columns.length + 2}" style="text-align:center; padding:2rem; color:var(--text-muted);">No data records found in database. Upload a CSV file or click "Add New Record".</td></tr>`;
-        if (indicator) indicator.textContent = 'Page 1 of 1';
-        if (prevBtn) prevBtn.disabled = true;
-        if (nextBtn) nextBtn.disabled = true;
-        return;
-      }
-
-      tableBody.innerHTML = '';
-      this.adminRecordsMap = {};
-
-      records.forEach((row, idx) => {
-        this.adminRecordsMap[row.id] = row.data;
-        const tr = document.createElement('tr');
-
-        let rowHtml = `<td>${(this.adminCurrentPage - 1) * 15 + idx + 1}</td>`;
-        columns.forEach(col => {
-          const val = row.data[col] !== undefined && row.data[col] !== null ? row.data[col] : '-';
-          rowHtml += `<td>${this.escapeHtml(val.toString())}</td>`;
-        });
-
-        rowHtml += `
-          <td style="text-align:right;">
-            <div class="action-btns" style="justify-content:flex-end;">
-              <button class="btn-icon" title="Edit Record" onclick="app.openEditRecordModal(${row.id})">✏️ Edit</button>
-              <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="app.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
-            </div>
-          </td>
-        `;
-
-        tr.innerHTML = rowHtml;
-        tableBody.appendChild(tr);
-      });
-
-      // Pagination
-      const pag = data.pagination;
-      if (indicator) indicator.textContent = `Page ${pag.page} of ${pag.totalPages} (${pag.totalRecords} records)`;
-      if (prevBtn) prevBtn.disabled = pag.page <= 1;
-      if (nextBtn) nextBtn.disabled = pag.page >= pag.totalPages;
-
-    } catch (err) {
-      console.error('Failed to load admin table:', err);
-      tableBody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding:2rem; color:var(--danger);">Failed to load admin data table.</td></tr>`;
-    }
-  }
-
-  filterAdminTable() {
-    const input = document.getElementById('adminSearchInput');
-    this.adminSearchQuery = input ? input.value : '';
-    this.adminCurrentPage = 1;
-    this.loadAdminTable();
-  }
-
-  changeAdminPage(delta) {
-    this.adminCurrentPage += delta;
-    this.loadAdminTable();
-  }
-
-  // --- ADD / EDIT RECORD MODAL & ACTIONS ---
-
-  openAddRecordModal() {
-    const modal = document.getElementById('editRecordModal');
-    const title = document.getElementById('editModalTitle');
-    const idInput = document.getElementById('editRecordId');
-    const fieldsContainer = document.getElementById('dynamicFormFields');
-    const alertEl = document.getElementById('editRecordAlert');
-
-    alertEl.classList.add('hidden');
-    idInput.value = '';
-    title.textContent = 'Add New Record';
-
-    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'District', 'Unit / Forona (ഫൊറോന)', 'Location', 'Phone', 'Availability'];
-
-    fieldsContainer.innerHTML = '';
-    columns.forEach(col => {
-      const group = document.createElement('div');
-      group.className = 'form-group';
-
-      const label = document.createElement('label');
-      label.textContent = col;
-
-      let input;
-      // Predefined Blood Group dropdown if column is blood group
-      if (/blood|group|bg/i.test(col)) {
-        input = document.createElement('select');
-        const defaultOpts = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-        defaultOpts.forEach(bg => {
-          const opt = document.createElement('option');
-          opt.value = bg;
-          opt.textContent = bg || `-- Select ${col} --`;
-          input.appendChild(opt);
-        });
-      } else {
-        input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = `Enter ${col}`;
-      }
-
-      input.name = col;
-      group.appendChild(label);
-      group.appendChild(input);
-      fieldsContainer.appendChild(group);
-    });
-
-    modal.classList.remove('hidden');
-  }
-
-  openEditRecordModal(id) {
-    const recordData = this.adminRecordsMap[id];
-    if (!recordData) return;
-
-    const modal = document.getElementById('editRecordModal');
-    const title = document.getElementById('editModalTitle');
-    const idInput = document.getElementById('editRecordId');
-    const fieldsContainer = document.getElementById('dynamicFormFields');
-    const alertEl = document.getElementById('editRecordAlert');
-
-    alertEl.classList.add('hidden');
-    idInput.value = id;
-    title.textContent = `Edit Record #${id}`;
-
-    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : Object.keys(recordData);
-
-    fieldsContainer.innerHTML = '';
-    columns.forEach(col => {
-      const group = document.createElement('div');
-      group.className = 'form-group';
-
-      const label = document.createElement('label');
-      label.textContent = col;
-
-      let input;
-      const currentVal = recordData[col] !== undefined && recordData[col] !== null ? recordData[col] : '';
-
-      if (/blood|group|bg/i.test(col)) {
-        input = document.createElement('select');
-        const defaultOpts = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
-        defaultOpts.forEach(bg => {
-          const opt = document.createElement('option');
-          opt.value = bg;
-          opt.textContent = bg || `-- Select ${col} --`;
-          if (bg === currentVal) opt.selected = true;
-          input.appendChild(opt);
-        });
-      } else {
-        input = document.createElement('input');
-        input.type = 'text';
-        input.value = currentVal;
-        input.placeholder = `Enter ${col}`;
-      }
-
-      input.name = col;
-      group.appendChild(label);
-      group.appendChild(input);
-      fieldsContainer.appendChild(group);
-    });
-
-    modal.classList.remove('hidden');
-  }
-
-  closeEditRecordModal() {
-    const modal = document.getElementById('editRecordModal');
-    if (modal) modal.classList.add('hidden');
-  }
-
-  async saveRecordForm(e) {
-    e.preventDefault();
-    const idInput = document.getElementById('editRecordId');
-    const recordId = idInput.value;
-    const fieldsContainer = document.getElementById('dynamicFormFields');
-    const alertEl = document.getElementById('editRecordAlert');
-    const saveBtn = document.getElementById('saveRecordBtn');
-
-    alertEl.classList.add('hidden');
-
-    const inputs = fieldsContainer.querySelectorAll('input, select');
-    const dataObj = {};
-    inputs.forEach(input => {
-      dataObj[input.name] = input.value.trim();
-    });
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving...';
-
-    try {
-      const url = recordId ? `/api/admin/records/${recordId}` : '/api/admin/records';
-      const method = recordId ? 'PUT' : 'POST';
-
-      const res = await fetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data: dataObj })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        this.showToast(data.message);
-        this.closeEditRecordModal();
-
-        // Refresh Schema, Admin Table, and Public Search Grid
-        await this.loadSchema();
-        await this.loadAdminTable();
-        await this.performSearch();
-      } else {
-        alertEl.textContent = data.error || 'Failed to save record.';
-        alertEl.classList.remove('hidden');
-      }
-    } catch (err) {
-      alertEl.textContent = 'Server connection error.';
-      alertEl.classList.remove('hidden');
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Save Record';
-    }
-  }
-
-  async confirmDeleteRecord(id) {
-    if (!confirm(`Are you sure you want to delete record #${id}?`)) {
-      return;
-    }
-
-    try {
-      const res = await fetch(`/api/admin/records/${id}`, { method: 'DELETE' });
-      const data = await res.json();
-
-      if (data.success) {
-        this.showToast('Record deleted successfully!');
-        await this.loadSchema();
-        await this.loadAdminTable();
-        await this.performSearch();
-      } else {
-        alert(data.error || 'Failed to delete record.');
-      }
-    } catch (err) {
-      alert('Error deleting record');
-    }
-  }
-
-  // --- CREDENTIAL CHANGE & LOGOUT ---
-
-  async handleChangeCredentials(e) {
-    e.preventDefault();
-    const currentPassword = document.getElementById('currentPassword').value;
-    const newUsername = document.getElementById('newUsername').value;
-    const newPassword = document.getElementById('newPassword').value;
-    const confirmNewPassword = document.getElementById('confirmNewPassword').value;
-    const alertEl = document.getElementById('settingsAlert');
-    const saveBtn = document.getElementById('saveCredsBtn');
-
-    alertEl.classList.add('hidden');
-
-    if (newPassword && newPassword !== confirmNewPassword) {
-      alertEl.className = 'alert alert-danger';
-      alertEl.textContent = 'New passwords do not match!';
-      alertEl.classList.remove('hidden');
-      return;
-    }
-
-    saveBtn.disabled = true;
-    saveBtn.textContent = 'Saving changes...';
-
-    try {
-      const res = await fetch('/api/admin/change-credentials', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          currentPassword,
-          newUsername,
-          newPassword
-        })
-      });
-
-      const data = await res.json();
-
-      if (data.success) {
-        alertEl.className = 'alert alert-success';
-        alertEl.textContent = data.message;
-        alertEl.classList.remove('hidden');
-        this.adminUsername = data.username;
-        this.updateAdminUI(true);
-        this.showToast('Admin credentials updated!');
-
-        document.getElementById('currentPassword').value = '';
-        document.getElementById('newUsername').value = '';
-        document.getElementById('newPassword').value = '';
-        document.getElementById('confirmNewPassword').value = '';
-      } else {
-        alertEl.className = 'alert alert-danger';
-        alertEl.textContent = data.error || 'Failed to update credentials.';
-        alertEl.classList.remove('hidden');
-      }
-    } catch (err) {
-      alertEl.className = 'alert alert-danger';
-      alertEl.textContent = 'Server error during credential change.';
-      alertEl.classList.remove('hidden');
-    } finally {
-      saveBtn.disabled = false;
-      saveBtn.textContent = 'Save New Credentials';
-    }
-  }
-
-  async logoutAdmin() {
-    try {
-      await fetch('/api/admin/logout', { method: 'POST' });
-      this.isAdminLoggedIn = false;
-      this.adminUsername = '';
-      this.updateAdminUI(false);
-      this.showToast('Logged out of Admin');
-    } catch (err) {
-      console.error('Logout error:', err);
-    }
-  }
-
-  // --- CSV UPLOAD & DATA MANAGEMENT ---
-
-  handleFileSelect(e) {
-    const file = e.target.files[0];
-    if (file) {
-      this.setCSVFile(file);
-    }
-  }
-
-  setCSVFile(file) {
-    if (!file.name.endsWith('.csv')) {
-      this.showToast('Please select a valid .csv file');
-      return;
-    }
-    this.selectedCSVFile = file;
-    const fileInfo = document.getElementById('selectedFileInfo');
-    const fileName = document.getElementById('fileName');
-
-    if (fileInfo && fileName) {
-      fileName.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-      fileInfo.classList.remove('hidden');
-    }
-  }
-
-  async uploadCSV() {
-    if (!this.selectedCSVFile) return;
-
-    const uploadBtn = document.getElementById('uploadBtn');
-    const statusEl = document.getElementById('uploadStatus');
-    const progressContainer = document.getElementById('uploadProgress');
-    const progressBar = document.getElementById('progressBar');
-
-    statusEl.classList.add('hidden');
-    progressContainer.classList.remove('hidden');
-    progressBar.style.width = '40%';
-    uploadBtn.disabled = true;
-
-    const formData = new FormData();
-    formData.append('csvFile', this.selectedCSVFile);
-
-    try {
-      progressBar.style.width = '75%';
-
-      const res = await fetch('/api/admin/upload-csv', {
-        method: 'POST',
-        body: formData
-      });
-
-      progressBar.style.width = '100%';
-      const data = await res.json();
-
-      if (data.success) {
-        statusEl.className = 'alert alert-success';
-        statusEl.textContent = data.message;
-        statusEl.classList.remove('hidden');
-
-        this.showToast('CSV Imported Successfully!');
-        document.getElementById('selectedFileInfo')?.classList.add('hidden');
-        this.selectedCSVFile = null;
-
-        await this.loadSchema();
-        await this.loadAdminTable();
-        await this.performSearch();
-      } else {
-        statusEl.className = 'alert alert-danger';
-        statusEl.textContent = data.error || 'Failed to upload CSV.';
-        statusEl.classList.remove('hidden');
-      }
-    } catch (err) {
-      statusEl.className = 'alert alert-danger';
-      statusEl.textContent = 'Server connection error during upload.';
-      statusEl.classList.remove('hidden');
-    } finally {
-      setTimeout(() => progressContainer.classList.add('hidden'), 500);
-      uploadBtn.disabled = false;
-    }
-  }
-
-  async confirmClearData() {
-    if (!confirm('Are you sure you want to delete all dataset records from the database? This cannot be undone.')) {
-      return;
-    }
-
-    try {
-      const res = await fetch('/api/admin/clear-data', { method: 'POST' });
-      const data = await res.json();
-
-      if (data.success) {
-        this.showToast('Database records cleared!');
-        await this.loadSchema();
-        await this.loadAdminTable();
-        await this.performSearch();
-      } else {
-        alert(data.error || 'Failed to clear data');
-      }
-    } catch (err) {
-      alert('Error clearing data');
-    }
-  }
-
-  showToast(message) {
-    const container = document.getElementById('toastContainer');
-    if (!container) return;
-
-    const toast = document.createElement('div');
-    toast.className = 'toast';
-    toast.innerHTML = `<span>✨ ${this.escapeHtml(message)}</span>`;
-
-    container.appendChild(toast);
-
-    setTimeout(() => {
-      toast.style.opacity = '0';
-      toast.style.transition = 'opacity 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
-    }, 3000);
   }
 
   escapeHtml(str) {

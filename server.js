@@ -202,7 +202,7 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   }
 });
 
-// GET Admin Records
+// GET Admin Records (No age restriction for admin view)
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
@@ -513,6 +513,7 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
+// PUBLIC SEARCH ROUTE (Enforces Age 18 to 55 restriction)
 app.get('/api/search', async (req, res) => {
   try {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
@@ -536,12 +537,14 @@ app.get('/api/search', async (req, res) => {
     const values = [];
     let paramIndex = 1;
 
+    // 1. Text Keyword Search
     if (queryStr) {
       whereConditions.push(`search_text ILIKE $${paramIndex}`);
       values.push(`%${queryStr}%`);
       paramIndex++;
     }
 
+    // 2. Specific Column Filters (Forona, Unit, Blood Group)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
@@ -567,6 +570,26 @@ app.get('/api/search', async (req, res) => {
       });
     }
 
+    // 3. STRICT AGE RESTRICTION: Exclude anyone under 18 or above 55
+    const ageKeys = existingColumns.filter(c => /age|വയസ്സ്/i.test(c));
+    if (ageKeys.length > 0) {
+      const ageOrConds = ageKeys.map(k => {
+        const p1 = paramIndex;
+        paramIndex++;
+        values.push(k);
+        return `(
+          (data ->> $${p1}) IS NULL OR 
+          (data ->> $${p1}) = '' OR 
+          NOT ((data ->> $${p1}) ~ '^[0-9]+$') OR 
+          (
+            ((data ->> $${p1})::int >= 18) AND 
+            ((data ->> $${p1})::int <= 55)
+          )
+        )`;
+      });
+      whereConditions.push(`(${ageOrConds.join(' AND ')})`);
+    }
+
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     const countSql = `SELECT COUNT(*) FROM data_records ${whereClause}`;
@@ -577,11 +600,20 @@ app.get('/api/search', async (req, res) => {
     const dataValues = [...values, limit, offset];
     const dataRes = await pool.query(dataSql, dataValues);
 
+    // Double check JS-level filtering to guarantee 18 <= age <= 55
+    const validRecords = dataRes.rows.map(r => ({ id: r.id, ...r.data })).filter(rec => {
+      const ageKey = Object.keys(rec).find(k => /age|വയസ്സ്/i.test(k));
+      if (!ageKey || rec[ageKey] === undefined || rec[ageKey] === null || rec[ageKey] === '') return true;
+      const numAge = parseInt(rec[ageKey], 10);
+      if (isNaN(numAge)) return true;
+      return numAge >= 18 && numAge <= 55;
+    });
+
     const totalPages = Math.ceil(totalRecords / limit) || 1;
 
     return res.json({
       success: true,
-      records: dataRes.rows.map(r => ({ id: r.id, ...r.data })),
+      records: validRecords,
       pagination: {
         page,
         limit,
@@ -606,13 +638,13 @@ function getMatchingColumnKeys(filterName, columns) {
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('district') || norm.includes('dist')) {
-    const matches = columns.filter(c => /district|dist/i.test(c));
+  if (norm.includes('forona') || norm.includes('ഫൊറോന')) {
+    const matches = columns.filter(c => /forona|ഫൊറോന/i.test(c));
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('unit') || norm.includes('forona') || norm.includes('ഫൊറോന')) {
-    const matches = columns.filter(c => /unit|forona|ഫൊറോന/i.test(c));
+  if (norm.includes('unit') || norm.includes('യൂണിറ്റ്')) {
+    const matches = columns.filter(c => /unit|യൂണിറ്റ്/i.test(c));
     if (matches.length > 0) return matches;
   }
 
