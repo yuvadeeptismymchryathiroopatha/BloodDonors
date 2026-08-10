@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard & Data Management - Bloodrupatha</title>
+  <meta name="description" content="Secure administrative dashboard for managing blood donor records, CSV uploads, and credential settings.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="admin-page">
+
+  <!-- Top Admin Navbar -->
+  <header class="navbar">
+    <div class="container navbar-inner">
+      <div class="brand">
+        <div class="logo-icon">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor">
+            <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/>
+          </svg>
+        </div>
+        <div class="brand-text">
+          <h1 class="brand-title">Bloodrupatha Admin</h1>
+          <span class="brand-subtitle">Management Portal</span>
+        </div>
+      </div>
+
+      <div class="nav-actions">
+        <a href="index.html" class="btn btn-outline btn-sm">
+          &larr; Public Search Site
+        </a>
+        <div id="adminBadge" class="admin-badge hidden">
+          <span class="admin-badge-icon">🛡️</span>
+          <span id="adminUsername">Admin</span>
+        </div>
+        <button id="logoutNavBtn" class="btn btn-danger btn-sm hidden" onclick="adminApp.logoutAdmin()">
+          Log Out
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="main-content">
+    <div class="container">
+
+      <!-- LOGIN FORM (When NOT Logged In) -->
+      <div id="loginFormContainer" class="admin-login-card card">
+        <div class="modal-title" style="margin-bottom:1rem;">
+          <span class="modal-title-icon" style="font-size:1.8rem;">🔐</span>
+          <h2>Admin Login</h2>
+        </div>
+        <p class="form-desc">Please enter your administrator credentials to access the data table and upload portal.</p>
+        
+        <form id="loginForm" onsubmit="adminApp.handleLogin(event)">
+          <div class="form-group">
+            <label for="loginUsername">Username</label>
+            <input type="text" id="loginUsername" placeholder="e.g. smymChry@blood" required autocomplete="username">
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">Password</label>
+            <input type="password" id="loginPassword" placeholder="Enter password" required autocomplete="current-password">
+          </div>
+          <div id="loginError" class="alert alert-danger hidden"></div>
+          <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">Log In to Dashboard</button>
+        </form>
+      </div>
+
+      <!-- ADMIN DASHBOARD (When Logged In) -->
+      <div id="adminDashboardContainer" class="admin-dashboard card hidden">
+        
+        <!-- Navigation Tabs -->
+        <div class="tab-buttons">
+          <button class="tab-btn active" id="tabTableBtn" onclick="adminApp.switchTab('table')">
+            📊 Data Table & Bulk Actions
+          </button>
+          <button class="tab-btn" id="tabUploadBtn" onclick="adminApp.switchTab('upload')">
+            📤 Upload CSV File
+          </button>
+          <button class="tab-btn" id="tabSettingsBtn" onclick="adminApp.switchTab('settings')">
+            🔑 Change Credentials
+          </button>
+        </div>
+
+        <!-- TAB 1: DATA TABLE WITH MULTI-SELECT BULK DELETE -->
+        <div id="tabTable" class="tab-content">
+          <div class="admin-table-toolbar">
+            <div class="toolbar-left">
+              <div class="admin-search-input">
+                <input type="text" id="adminSearchInput" placeholder="Search / filter in table..." onkeyup="adminApp.filterAdminTable()">
+              </div>
+              <button id="bulkDeleteBtn" class="btn btn-danger btn-sm hidden" onclick="adminApp.confirmBulkDelete()">
+                🗑️ Delete Selected (<span id="selectedCount">0</span>)
+              </button>
+            </div>
+            <div class="toolbar-right">
+              <button class="btn btn-primary btn-sm" onclick="adminApp.openAddRecordModal()">
+                ➕ Add New Record
+              </button>
+            </div>
+          </div>
+
+          <div class="table-responsive">
+            <table class="admin-data-table">
+              <thead>
+                <tr id="adminTableHeadRow">
+                  <th style="width:40px;"><input type="checkbox" id="selectAllCheckbox" onchange="adminApp.toggleSelectAll(this)"></th>
+                  <th>#</th>
+                  <!-- Dynamic Headers -->
+                </tr>
+              </thead>
+              <tbody id="adminTableBody">
+                <!-- Dynamic Rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <div id="adminTablePagination" class="pagination-wrapper">
+            <button id="adminPrevBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(-1)">&larr; Prev</button>
+            <span id="adminPageIndicator" class="page-indicator">Page 1 of 1</span>
+            <button id="adminNextBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(1)">Next &rarr;</button>
+          </div>
+        </div>
+
+        <!-- TAB 2: CSV UPLOAD -->
+        <div id="tabUpload" class="tab-content hidden">
+          <div class="upload-zone" id="dropZone">
+            <div class="upload-icon">📁</div>
+            <p class="upload-title">Drag & Drop CSV file here</p>
+            <p class="upload-subtitle">or click to select from your computer</p>
+            <input type="file" id="csvFileInput" accept=".csv" class="file-input" onchange="adminApp.handleFileSelect(event)">
+            <button class="btn btn-outline btn-sm" onclick="document.getElementById('csvFileInput').click()">Select CSV File</button>
+          </div>
+
+          <div id="selectedFileInfo" class="file-info hidden">
+            <span class="file-icon">📄</span>
+            <span id="fileName" class="file-name">filename.csv</span>
+            <button id="uploadBtn" class="btn btn-primary btn-sm" onclick="adminApp.uploadCSV()">Upload & Import Dataset</button>
+          </div>
+
+          <div id="uploadProgress" class="progress-bar-container hidden">
+            <div class="progress-bar" id="progressBar"></div>
+            <span class="progress-text" id="progressText">Processing CSV data...</span>
+          </div>
+
+          <div id="uploadStatus" class="alert hidden"></div>
+
+          <div class="dataset-management card">
+            <h4>Dataset Statistics</h4>
+            <div class="dataset-stats" id="adminDatasetStats">
+              Loading database details...
+            </div>
+            <div class="dataset-btn-row">
+              <button class="btn btn-danger btn-sm" onclick="adminApp.confirmClearData()">
+                🗑️ Clear All Dataset Records
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: CREDENTIAL SETTINGS -->
+        <div id="tabSettings" class="tab-content hidden">
+          <p class="form-desc">Update your administrator username and password securely.</p>
+          <form id="changeCredsForm" onsubmit="adminApp.handleChangeCredentials(event)">
+            <div class="form-group">
+              <label for="currentPassword">Current Password <span class="required">*</span></label>
+              <input type="password" id="currentPassword" placeholder="Enter current password" required>
+            </div>
+
+            <div class="form-group">
+              <label for="newUsername">New Username (Optional)</label>
+              <input type="text" id="newUsername" placeholder="Leave blank to keep current username">
+            </div>
+
+            <div class="form-group">
+              <label for="newPassword">New Password (Optional)</label>
+              <input type="password" id="newPassword" placeholder="Minimum 6 characters">
+            </div>
+
+            <div class="form-group">
+              <label for="confirmNewPassword">Confirm New Password</label>
+              <input type="password" id="confirmNewPassword" placeholder="Repeat new password">
+            </div>
+
+            <div id="settingsAlert" class="alert hidden"></div>
+
+            <button type="submit" id="saveCredsBtn" class="btn btn-primary btn-block">Save New Credentials</button>
+          </form>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ADD / EDIT RECORD MODAL -->
+  <div id="editRecordModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-title-icon">✏️</span>
+          <h3 id="editModalTitle">Edit Record</h3>
+        </div>
+        <button class="modal-close" onclick="adminApp.closeEditRecordModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="recordForm" onsubmit="adminApp.saveRecordForm(event)">
+          <input type="hidden" id="editRecordId" value="">
+          <div id="dynamicFormFields">
+            <!-- Dynamic Form Inputs -->
+          </div>
+          <div id="editRecordAlert" class="alert hidden"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-outline btn-sm" onclick="adminApp.closeEditRecordModal()">Cancel</button>
+            <button type="submit" id="saveRecordBtn" class="btn btn-primary btn-sm">Save Record</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="toastContainer" class="toast-container"></div>
+
+  <footer class="footer">
+    <div class="container">
+      <p>&copy; 2026 Bloodrupatha Portal &bull; Light, Secure & Accessible</p>
+    </div>
+  </footer>
+
+  <script src="admin.js"></script>
+</body>
+</html>

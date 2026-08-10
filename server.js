@@ -55,7 +55,6 @@ function requireAdmin(req, res, next) {
   return res.status(401).json({ success: false, error: 'Unauthorized. Admin login required.' });
 }
 
-// Helper to recalculate dynamic schema & filterable options
 async function refreshSchemaMetadata(clientOrPool = pool) {
   const allRecordsRes = await clientOrPool.query('SELECT data FROM data_records');
   if (allRecordsRes.rows.length === 0) {
@@ -203,11 +202,11 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
   }
 });
 
-// GET Admin Records with Table View Pagination & Filter
+// GET Admin Records
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 15));
+    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const offset = (page - 1) * limit;
     const q = req.query.q ? req.query.q.trim() : '';
 
@@ -331,6 +330,37 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Delete record error:', err);
     return res.status(500).json({ success: false, error: 'Failed to delete record.' });
+  }
+});
+
+// BULK DELETE Multiple Selected Records
+app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'Array of record IDs is required for bulk deletion.' });
+    }
+
+    const numericIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (numericIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid numeric record IDs provided.' });
+    }
+
+    const deleteRes = await pool.query(
+      'DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id',
+      [numericIds]
+    );
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      count: deleteRes.rows.length,
+      message: `Successfully deleted ${deleteRes.rows.length} selected record(s)!`
+    });
+  } catch (err) {
+    console.error('Bulk delete error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to perform bulk deletion.' });
   }
 });
 
