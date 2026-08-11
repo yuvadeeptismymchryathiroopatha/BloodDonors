@@ -4,11 +4,23 @@
  */
 (function () {
   const STORAGE_KEY = 'ybf-theme';
+  const LOGO_LIGHT = 'images/logo-light.png';
+  const LOGO_DARK = 'images/logo-dark.png';
 
   function getPreferredTheme() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved === 'light' || saved === 'dark') return saved;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function updateLogos(theme) {
+    const src = theme === 'dark' ? LOGO_DARK : LOGO_LIGHT;
+    document.querySelectorAll('[data-site-logo]').forEach((img) => {
+      if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    });
+    document.querySelectorAll('link[rel="icon"]').forEach((link) => {
+      link.setAttribute('href', src);
+    });
   }
 
   function applyTheme(theme) {
@@ -17,6 +29,7 @@
     if (meta) {
       meta.setAttribute('content', theme === 'dark' ? '#121010' : '#faf7f4');
     }
+    updateLogos(theme);
     document.querySelectorAll('[data-theme-toggle]').forEach((btn) => {
       const isDark = theme === 'dark';
       btn.setAttribute('aria-label', isDark ? 'Switch to light mode' : 'Switch to dark mode');
