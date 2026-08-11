@@ -297,6 +297,130 @@ class ProfileApp {
     }
   }
 
+  toggleForgotPasswordForm(e) {
+    if (e) e.preventDefault();
+    const forgotTab = document.getElementById('tabForgotPassword');
+    if (!forgotTab) return;
+    const isHidden = forgotTab.classList.contains('hidden');
+    if (isHidden) {
+      forgotTab.classList.remove('hidden');
+      forgotTab.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      forgotTab.classList.add('hidden');
+    }
+  }
+
+  async handleForgotPasswordVerify(e) {
+    e.preventDefault();
+    const email = (document.getElementById('forgotEmail')?.value || '').trim();
+    const phone = (document.getElementById('forgotPhone')?.value || '').trim();
+    const errorEl = document.getElementById('forgotStep1Error');
+    const submitBtn = document.getElementById('forgotStep1Btn');
+
+    if (!email) {
+      errorEl.textContent = 'Please enter your registered email address.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    errorEl.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Verifying Account...';
+
+    try {
+      const res = await fetch('/api/auth/forgot-password/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, phone })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        document.getElementById('forgotStep2Form')?.classList.remove('hidden');
+        if (data.resetCode) {
+          const resetCodeInput = document.getElementById('resetCode');
+          if (resetCodeInput) resetCodeInput.value = data.resetCode;
+        }
+        submitBtn.textContent = '✅ Identity Verified';
+        this.showToast('Account verified! Enter new password.');
+      } else {
+        errorEl.textContent = data.error || 'Account verification failed.';
+        errorEl.classList.remove('hidden');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Verify Account Details';
+      }
+    } catch (err) {
+      console.error('Forgot password verify error:', err);
+      errorEl.textContent = 'Server connection error. Please try again.';
+      errorEl.classList.remove('hidden');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Verify Account Details';
+    }
+  }
+
+  async handleResetPasswordSubmit(e) {
+    e.preventDefault();
+    const email = (document.getElementById('forgotEmail')?.value || '').trim();
+    const resetCode = (document.getElementById('resetCode')?.value || '').trim();
+    const newPassword = document.getElementById('newPassword')?.value || '';
+    const confirmNewPassword = document.getElementById('confirmNewPassword')?.value || '';
+    const errorEl = document.getElementById('forgotStep2Error');
+    const successEl = document.getElementById('forgotStep2Success');
+    const submitBtn = document.getElementById('forgotStep2Btn');
+
+    if (newPassword.length < 6) {
+      errorEl.textContent = 'Password must be at least 6 characters long.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      errorEl.textContent = 'Passwords do not match.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    errorEl.classList.add('hidden');
+    successEl.classList.add('hidden');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Saving New Password...';
+
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, resetCode, newPassword })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        successEl.textContent = data.message || 'Password reset successfully! You can now sign in.';
+        successEl.classList.remove('hidden');
+        this.showToast('Password reset successfully!');
+
+        const loginEmailInput = document.getElementById('loginEmail');
+        if (loginEmailInput) loginEmailInput.value = email;
+
+        setTimeout(() => {
+          document.getElementById('tabForgotPassword')?.classList.add('hidden');
+          document.getElementById('loginPassword')?.focus();
+        }, 2000);
+      } else {
+        errorEl.textContent = data.error || 'Failed to reset password.';
+        errorEl.classList.remove('hidden');
+      }
+    } catch (err) {
+      console.error('Reset password error:', err);
+      errorEl.textContent = 'Server connection error. Please try again.';
+      errorEl.classList.remove('hidden');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = '🔑 Save New Password';
+    }
+  }
+
   renderAuthView() {
     document.getElementById('authContainer')?.classList.remove('hidden');
     document.getElementById('profileContainer')?.classList.add('hidden');

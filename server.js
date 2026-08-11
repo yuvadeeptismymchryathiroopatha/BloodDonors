@@ -443,6 +443,102 @@ app.post('/api/auth/login', async (req, res) => {
   }
 });
 
+// FORGOT PASSWORD - STEP 1: VERIFY IDENTITY & GENERATE RESET CODE
+app.post('/api/auth/forgot-password/verify', async (req, res) => {
+  try {
+    const { email, phone } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, error: 'Email address is required.' });
+    }
+
+    const userRes = await pool.query('SELECT id, email, phone, password_hash FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'No account found with this email address.' });
+    }
+
+    const user = userRes.rows[0];
+
+    if (!user.password_hash) {
+      return res.status(400).json({ success: false, error: 'This account was created with Google Sign-In. Please sign in using Google.' });
+    }
+
+    if (phone) {
+      const cleanInputPhone = phone.replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+      const cleanDbPhone = (user.phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+      if (cleanDbPhone && cleanInputPhone && cleanDbPhone !== cleanInputPhone) {
+        return res.status(400).json({ success: false, error: 'Phone number does not match registered account details.' });
+      }
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    await pool.query(
+      'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
+      [resetCode, expiresAt, user.id]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Identity verified. Enter your 6-digit verification code and set a new password.',
+      resetCode: resetCode
+    });
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to process password reset request.' });
+  }
+});
+
+// FORGOT PASSWORD - STEP 2: RESET PASSWORD WITH VERIFICATION CODE
+app.post('/api/auth/reset-password', async (req, res) => {
+  try {
+    const { email, resetCode, newPassword } = req.body;
+
+    if (!email || !resetCode || !newPassword) {
+      return res.status(400).json({ success: false, error: 'Email, verification code, and new password are required.' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
+    }
+
+    const userRes = await pool.query(
+      'SELECT id, reset_token, reset_token_expires FROM users WHERE LOWER(email) = LOWER($1)',
+      [email.trim()]
+    );
+
+    if (userRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'User account not found.' });
+    }
+
+    const user = userRes.rows[0];
+
+    if (!user.reset_token || user.reset_token !== resetCode.trim()) {
+      return res.status(400).json({ success: false, error: 'Invalid verification code.' });
+    }
+
+    if (!user.reset_token_expires || new Date(user.reset_token_expires) < new Date()) {
+      return res.status(400).json({ success: false, error: 'Verification code has expired. Please request a new one.' });
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(newPassword, salt);
+
+    await pool.query(
+      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
+      [passwordHash, user.id]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Password reset successfully! You can now sign in with your new password.'
+    });
+  } catch (err) {
+    console.error('Reset password error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to reset password.' });
+  }
+});
+
 // Get Current Logged-In User Profile
 app.get('/api/auth/me', (req, res) => {
   if (req.session && req.session.user) {

@@ -87,12 +87,54 @@
             <input type="email" id="loginEmail" placeholder="yourname@gmail.com" required>
           </div>
           <div class="form-group">
-            <label for="loginPassword">Password</label>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <label for="loginPassword">Password</label>
+              <a href="#" onclick="profileApp.toggleForgotPasswordForm(event)" style="font-size:0.85rem; color:var(--primary); text-decoration:none; font-weight:600;">Forgot Password?</a>
+            </div>
             <input type="password" id="loginPassword" placeholder="Enter password" required>
           </div>
           <div id="loginError" class="alert alert-danger hidden"></div>
           <button type="submit" id="loginSubmitBtn" class="btn btn-primary btn-block">🔑 Sign In with Email</button>
         </form>
+
+        <!-- FORGOT PASSWORD SECTION -->
+        <div id="tabForgotPassword" class="auth-tab-content hidden" style="margin-top: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1.25rem; background: var(--bg-elevated);">
+          <h3 style="font-size: 1.1rem; margin-bottom: 0.5rem; font-family: var(--font-heading);">🔒 Reset Password</h3>
+          <p class="form-desc" style="font-size: 0.85rem; margin-bottom: 1rem;">Verify your registered Email and Phone number to set a new password.</p>
+
+          <!-- Step 1: Verification -->
+          <form id="forgotStep1Form" onsubmit="profileApp.handleForgotPasswordVerify(event)">
+            <div class="form-group">
+              <label for="forgotEmail">Registered Email Address <span class="required">*</span></label>
+              <input type="email" id="forgotEmail" placeholder="yourname@gmail.com" required>
+            </div>
+            <div class="form-group">
+              <label for="forgotPhone">Registered Phone Number</label>
+              <input type="tel" id="forgotPhone" placeholder="10-digit registered number">
+            </div>
+            <div id="forgotStep1Error" class="alert alert-danger hidden"></div>
+            <button type="submit" id="forgotStep1Btn" class="btn btn-outline btn-block">Verify Account Details</button>
+          </form>
+
+          <!-- Step 2: Reset Code & New Password -->
+          <form id="forgotStep2Form" class="hidden" onsubmit="profileApp.handleResetPasswordSubmit(event)" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--border-color);">
+            <div class="form-group">
+              <label for="resetCode">Verification Code <span class="required">*</span></label>
+              <input type="text" id="resetCode" placeholder="6-digit verification code" required>
+            </div>
+            <div class="form-group">
+              <label for="newPassword">New Password <span class="required">*</span></label>
+              <input type="password" id="newPassword" placeholder="Minimum 6 characters" required>
+            </div>
+            <div class="form-group">
+              <label for="confirmNewPassword">Confirm New Password <span class="required">*</span></label>
+              <input type="password" id="confirmNewPassword" placeholder="Re-enter new password" required>
+            </div>
+            <div id="forgotStep2Error" class="alert alert-danger hidden"></div>
+            <div id="forgotStep2Success" class="alert alert-success hidden"></div>
+            <button type="submit" id="forgotStep2Btn" class="btn btn-primary btn-block">🔑 Save New Password</button>
+          </form>
+        </div>
 
         <div class="divider"><span>DON'T HAVE AN ACCOUNT?</span></div>
 
