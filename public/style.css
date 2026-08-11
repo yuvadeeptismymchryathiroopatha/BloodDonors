@@ -233,18 +233,15 @@ body {
 }
 
 .logo-img {
-  width: 48px;
-  height: 48px;
+  width: 52px;
+  height: 52px;
   object-fit: contain;
   object-position: center;
-  border-radius: 50%;
+  border-radius: 0;
   flex-shrink: 0;
-  background: #000;
-  box-shadow:
-    0 0 0 2px var(--bg-elevated),
-    0 0 0 3.5px var(--gold),
-    0 4px 14px rgba(var(--primary-rgb), 0.28);
-  transition: transform var(--transition), box-shadow var(--transition);
+  background: transparent;
+  box-shadow: none;
+  transition: transform var(--transition);
 }
 
 .brand:hover .logo-img {
@@ -400,18 +397,14 @@ body {
 }
 
 .hero-logo {
-  width: 120px;
-  height: 120px;
+  width: 132px;
+  height: 132px;
   object-fit: contain;
   object-position: center;
-  border-radius: 50%;
+  border-radius: 0;
   margin-bottom: 1.1rem;
-  background: #000;
-  box-shadow:
-    0 0 0 4px var(--bg-elevated),
-    0 0 0 6px var(--gold),
-    0 0 36px rgba(245, 208, 0, 0.35),
-    0 12px 28px rgba(var(--primary-rgb), 0.22);
+  background: transparent;
+  box-shadow: none;
   animation: softPulse 3.2s ease-in-out infinite;
 }
 
@@ -2074,9 +2067,9 @@ body {
 
 [data-theme="dark"] .logo-img,
 [data-theme="dark"] .brand:hover .logo-img {
-  box-shadow: 0 0 0 2px var(--border-strong);
+  box-shadow: none;
   filter: none;
-  background: #000;
+  background: transparent;
 }
 
 [data-theme="dark"] .theme-toggle {
@@ -2126,8 +2119,8 @@ body {
 }
 
 [data-theme="dark"] .hero-logo {
-  background: #000;
-  box-shadow: 0 0 0 3px var(--border-strong);
+  background: transparent;
+  box-shadow: none;
   animation: none;
   filter: none;
 }
