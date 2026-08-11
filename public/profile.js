@@ -161,12 +161,13 @@ class ProfileApp {
 
   async handleRegister(e) {
     e.preventDefault();
-    const name = document.getElementById('regName').value;
-    const email = document.getElementById('regEmail').value;
-    const password = document.getElementById('regPassword').value;
-    const phone = document.getElementById('regPhone').value;
-    const bloodGroup = document.getElementById('regBloodGroup').value;
-    const zone = document.getElementById('regZone').value;
+    const name = document.getElementById('regName')?.value || '';
+    const email = document.getElementById('regEmail')?.value || '';
+    const password = document.getElementById('regPassword')?.value || '';
+    const phone = document.getElementById('regPhone')?.value || '';
+    const bloodGroup = document.getElementById('regBloodGroup')?.value || '';
+    const zone = document.getElementById('regZone')?.value || '';
+    const forona = document.getElementById('regForane')?.value || '';
     const unit = document.getElementById('regUnit')?.value || '';
     const dob = document.getElementById('regDob')?.value || '';
     const errorEl = document.getElementById('regError');
@@ -195,18 +196,24 @@ class ProfileApp {
         })
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.error('Failed to parse JSON response:', jsonErr);
+      }
 
-      if (data.success) {
+      if (res.ok && data && data.success) {
         this.currentUser = data.user;
         this.renderProfileView();
         this.showToast('Registration complete! Welcome!');
       } else {
-        errorEl.textContent = data.error || 'Registration failed.';
+        errorEl.textContent = (data && data.error) ? data.error : `Registration failed (${res.status || 'Server error'}).`;
         errorEl.classList.remove('hidden');
       }
     } catch (err) {
-      errorEl.textContent = 'Server connection error.';
+      console.error('Registration fetch error:', err);
+      errorEl.textContent = 'Server connection error. Please check if server is running.';
       errorEl.classList.remove('hidden');
     } finally {
       submitBtn.disabled = false;
@@ -387,10 +394,11 @@ class ProfileApp {
 
   async updateProfileDetails(e) {
     e.preventDefault();
-    const name = document.getElementById('profileName').value;
-    const phone = document.getElementById('profilePhone').value;
-    const bloodGroup = document.getElementById('profileBloodGroup').value;
-    const zone = document.getElementById('profileZone').value;
+    const name = document.getElementById('profileName')?.value || '';
+    const phone = document.getElementById('profilePhone')?.value || '';
+    const bloodGroup = document.getElementById('profileBloodGroup')?.value || '';
+    const zone = document.getElementById('profileZone')?.value || '';
+    const forona = document.getElementById('profileForane')?.value || '';
     const unit = document.getElementById('profileUnit')?.value || '';
     const dob = document.getElementById('profileDob')?.value || '';
     const alertEl = document.getElementById('profileAlert');
@@ -420,9 +428,14 @@ class ProfileApp {
         })
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch (jsonErr) {
+        console.error('Failed to parse JSON response:', jsonErr);
+      }
 
-      if (data.success) {
+      if (res.ok && data && data.success) {
         this.currentUser = data.user;
         this.renderProfileView();
         alertEl.className = 'alert alert-success';
@@ -431,10 +444,11 @@ class ProfileApp {
         this.showToast('Profile updated & synced to search directory!');
       } else {
         alertEl.className = 'alert alert-danger';
-        alertEl.textContent = data.error || 'Failed to update profile.';
+        alertEl.textContent = (data && data.error) ? data.error : `Failed to update profile (${res.status || 'Server error'}).`;
         alertEl.classList.remove('hidden');
       }
     } catch (err) {
+      console.error('Profile update error:', err);
       alertEl.className = 'alert alert-danger';
       alertEl.textContent = 'Server error during profile update.';
       alertEl.classList.remove('hidden');

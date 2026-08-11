@@ -121,6 +121,18 @@ function calculateAgeFromDob(dobStr) {
   return age >= 0 ? age : null;
 }
 
+function formatDateSafe(dateVal) {
+  if (!dateVal) return null;
+  if (dateVal instanceof Date) {
+    if (isNaN(dateVal.getTime())) return null;
+    return dateVal.toISOString().split('T')[0];
+  }
+  const str = String(dateVal).trim();
+  if (!str) return null;
+  if (str.includes('T')) return str.split('T')[0];
+  return str.split(' ')[0];
+}
+
 // SYNC USER PROFILE TO PUBLIC DATA_RECORDS TABLE
 async function syncUserProfileToDataRecords(userId) {
   try {
@@ -138,14 +150,14 @@ async function syncUserProfileToDataRecords(userId) {
     const formattedRecord = {
       "Name": user.name,
       "Age": computedAge !== null && computedAge !== undefined ? computedAge.toString() : (user.age ? user.age.toString() : "25"),
-      "Date of Birth": user.dob ? user.dob.toISOString().split('T')[0] : "",
+      "Date of Birth": formatDateSafe(user.dob) || "",
       "Phone": user.phone,
       "Unit": user.unit || "",
       "Forane": user.forona || "Changanacherry",
       "Zone": user.zone || "Changanacherry Zone",
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
-      "Last Donation Date": user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : ""
+      "Last Donation Date": formatDateSafe(user.last_donation_date) || ""
     };
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
@@ -251,9 +263,9 @@ app.post('/api/auth/google', async (req, res) => {
       zone: user.zone,
       forona: user.forona,
       unit: user.unit,
-      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+      lastDonationDate: formatDateSafe(user.last_donation_date)
     };
 
     return res.json({
@@ -336,9 +348,9 @@ app.post('/api/auth/register', async (req, res) => {
       zone: user.zone,
       forona: user.forona,
       unit: user.unit,
-      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+      lastDonationDate: formatDateSafe(user.last_donation_date)
     };
 
     await syncUserProfileToDataRecords(user.id);
@@ -388,9 +400,9 @@ app.post('/api/auth/login', async (req, res) => {
       zone: user.zone,
       forona: user.forona,
       unit: user.unit,
-      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+      lastDonationDate: formatDateSafe(user.last_donation_date)
     };
 
     return res.json({
@@ -484,9 +496,9 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       zone: user.zone,
       forona: user.forona,
       unit: user.unit,
-      dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+      dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: user.last_donation_date ? user.last_donation_date.toISOString().split('T')[0] : null
+      lastDonationDate: formatDateSafe(user.last_donation_date)
     };
 
     await syncUserProfileToDataRecords(user.id);
