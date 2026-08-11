@@ -133,6 +133,19 @@ function formatDateSafe(dateVal) {
   return str.split(' ')[0];
 }
 
+function getZoneFromForane(forane) {
+  if (!forane) return 'Changanacherry Zone';
+  const f = forane.trim().toLowerCase();
+  if (['kottayam', 'kudamaloor', 'athirampuzha', 'manimala', 'nedumkunnam'].includes(f)) return 'Kottayam Zone';
+  if (['changanacherry', 'thuruthy', 'thrickodithanam', 'thrikodithanam', 'kurumpanadom'].includes(f)) return 'Changanacherry Zone';
+  if (['alappuzha', 'muhamma'].includes(f)) return 'Alappuzha Zone';
+  if (['edathua', 'pulinkunnoo', 'champakulam'].includes(f)) return 'Kuttanad Zone';
+  if (['kollam-ayoor', 'kollam', 'ayoor'].includes(f)) return 'Kollam-ayoor Zone';
+  if (['trivandrum', 'amboori'].includes(f)) return 'Trivandrum Zone';
+  if (['chenganoor'].includes(f)) return 'Chenganoor Zone';
+  return `${forane} Zone`;
+}
+
 // SYNC USER PROFILE TO PUBLIC DATA_RECORDS TABLE
 async function syncUserProfileToDataRecords(userId) {
   try {
@@ -287,9 +300,23 @@ app.post('/api/auth/register', async (req, res) => {
     if (!email || !password || !name) {
       return res.status(400).json({ success: false, error: 'Email, password, and name are required.' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters.' });
+
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email.trim())) {
+      return res.status(400).json({ success: false, error: 'Please enter a valid email address.' });
     }
+
+    if (password.length < 6) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 6 characters long.' });
+    }
+
+    const cleanPhone = (phone || '').replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+    const phoneNum = Number(cleanPhone);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) || isNaN(phoneNum) || phoneNum < 6000000000 || phoneNum > 9999999999) {
+      return res.status(400).json({ success: false, error: 'Phone number must be a valid 10-digit Indian number (between 6000000000 and 9999999999).' });
+    }
+
+    const computedZone = zone || getZoneFromForane(forona);
 
     const existingRes = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
     if (existingRes.rows.length > 0) {
@@ -325,9 +352,9 @@ app.post('/api/auth/register', async (req, res) => {
         email.trim(),
         passwordHash,
         name.trim(),
-        phone ? phone.trim() : null,
+        cleanPhone,
         bloodGroup ? bloodGroup.trim() : null,
-        zone ? zone.trim() : null,
+        computedZone ? computedZone.trim() : null,
         forona ? forona.trim() : null,
         unit ? unit.trim() : null,
         dob ? dob : null,

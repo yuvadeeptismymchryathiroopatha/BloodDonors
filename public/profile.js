@@ -159,19 +159,55 @@ class ProfileApp {
     }
   }
 
+  getZoneFromForane(forane) {
+    if (!forane) return 'Changanacherry Zone';
+    const f = forane.trim().toLowerCase();
+    if (['kottayam', 'kudamaloor', 'athirampuzha', 'manimala', 'nedumkunnam'].includes(f)) return 'Kottayam Zone';
+    if (['changanacherry', 'thuruthy', 'thrickodithanam', 'thrikodithanam', 'kurumpanadom'].includes(f)) return 'Changanacherry Zone';
+    if (['alappuzha', 'muhamma'].includes(f)) return 'Alappuzha Zone';
+    if (['edathua', 'pulinkunnoo', 'champakulam'].includes(f)) return 'Kuttanad Zone';
+    if (['kollam-ayoor', 'kollam', 'ayoor'].includes(f)) return 'Kollam-ayoor Zone';
+    if (['trivandrum', 'amboori'].includes(f)) return 'Trivandrum Zone';
+    if (['chenganoor'].includes(f)) return 'Chenganoor Zone';
+    return `${forane} Zone`;
+  }
+
   async handleRegister(e) {
     e.preventDefault();
-    const name = document.getElementById('regName')?.value || '';
-    const email = document.getElementById('regEmail')?.value || '';
+    const name = (document.getElementById('regName')?.value || '').trim();
+    const email = (document.getElementById('regEmail')?.value || '').trim();
     const password = document.getElementById('regPassword')?.value || '';
-    const phone = document.getElementById('regPhone')?.value || '';
+    const phoneInput = (document.getElementById('regPhone')?.value || '').trim();
     const bloodGroup = document.getElementById('regBloodGroup')?.value || '';
-    const zone = document.getElementById('regZone')?.value || '';
     const forona = document.getElementById('regForane')?.value || '';
-    const unit = document.getElementById('regUnit')?.value || '';
+    const unit = (document.getElementById('regUnit')?.value || '').trim();
     const dob = document.getElementById('regDob')?.value || '';
     const errorEl = document.getElementById('regError');
     const submitBtn = document.getElementById('regSubmitBtn');
+
+    // Email format validation
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!email || !emailRegex.test(email)) {
+      errorEl.textContent = 'Please enter a valid email address (e.g. name@example.com).';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    // Password format validation
+    if (!password || password.length < 6) {
+      errorEl.textContent = 'Password must be at least 6 characters long.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    // Indian Phone Number Range Validation (10 digits between 6000000000 and 9999999999)
+    const cleanPhone = phoneInput.replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+    const phoneNum = Number(cleanPhone);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) || isNaN(phoneNum) || phoneNum < 6000000000 || phoneNum > 9999999999) {
+      errorEl.textContent = 'Phone number must be a valid 10-digit Indian phone number (between 6000000000 and 9999999999).';
+      errorEl.classList.remove('hidden');
+      return;
+    }
 
     if (dob) {
       const dDate = new Date(dob);
@@ -183,6 +219,9 @@ class ProfileApp {
       }
     }
 
+    // Derive Zone automatically from Forane
+    const zone = this.getZoneFromForane(forona);
+
     errorEl.classList.add('hidden');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Registering...';
@@ -192,7 +231,7 @@ class ProfileApp {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, email, password, phone, bloodGroup, zone, forona, unit, dob
+          name, email, password, phone: cleanPhone, bloodGroup, zone, forona, unit, dob
         })
       });
 
