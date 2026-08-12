@@ -2281,3 +2281,55 @@ body {
   color: #dc2626;
   border: 1px solid rgba(220, 38, 38, 0.25);
 }
+
+/* Availability Toggle Switch Slider */
+.toggle-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle-switch-input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.toggle-switch-slider {
+  position: relative;
+  width: 52px;
+  height: 28px;
+  background-color: var(--text-muted);
+  border-radius: 34px;
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.toggle-switch-slider::before {
+  content: "";
+  position: absolute;
+  height: 22px;
+  width: 22px;
+  left: 3px;
+  bottom: 3px;
+  background-color: #ffffff;
+  border-radius: 50%;
+  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+
+.toggle-switch-input:checked + .toggle-switch-slider {
+  background-color: #10b981; /* Vibrant green */
+}
+
+.toggle-switch-input:checked + .toggle-switch-slider::before {
+  transform: translateX(24px);
+}
+
+.toggle-switch-input:not(:checked) + .toggle-switch-slider {
+  background-color: #dc2626; /* Vibrant red */
+}

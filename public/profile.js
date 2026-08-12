@@ -535,18 +535,17 @@ class ProfileApp {
       if (toggleEditBtn) toggleEditBtn.textContent = '✏️ Edit Profile Information';
     }
 
-    // Availability Status Toggle Button State
+    // Availability Status Toggle Switch State
     const isAvailable = user.isAvailable !== false;
-    const toggleAvailBtn = document.getElementById('toggleAvailabilityBtn');
-    if (toggleAvailBtn) {
-      if (isAvailable) {
-        toggleAvailBtn.className = 'btn btn-primary';
-        toggleAvailBtn.textContent = '🟢 Available for Donation';
-      } else {
-        toggleAvailBtn.className = 'btn btn-outline';
-        toggleAvailBtn.style.borderColor = 'var(--primary)';
-        toggleAvailBtn.textContent = '🔴 Marked Unavailable (Click to Enable)';
-      }
+    const availCheckbox = document.getElementById('availabilityToggleCheckbox');
+    const availLabel = document.getElementById('availabilityStatusLabel');
+
+    if (availCheckbox) {
+      availCheckbox.checked = isAvailable;
+    }
+    if (availLabel) {
+      availLabel.textContent = isAvailable ? '🟢 Available for Donation' : '🔴 Marked Unavailable (Inactive)';
+      availLabel.style.color = isAvailable ? '#10b981' : '#dc2626';
     }
 
     // Donation Date
@@ -605,13 +604,12 @@ class ProfileApp {
   }
 
   async toggleAvailabilityStatus() {
-    const currentAvailable = this.currentUser ? (this.currentUser.isAvailable !== false) : true;
-    const newAvailable = !currentAvailable;
-    const toggleBtn = document.getElementById('toggleAvailabilityBtn');
+    const availCheckbox = document.getElementById('availabilityToggleCheckbox');
+    const newAvailable = availCheckbox ? availCheckbox.checked : true;
+    const availLabel = document.getElementById('availabilityStatusLabel');
 
-    if (toggleBtn) {
-      toggleBtn.disabled = true;
-      toggleBtn.textContent = 'Updating Status...';
+    if (availLabel) {
+      availLabel.textContent = 'Updating...';
     }
 
     try {
@@ -628,13 +626,15 @@ class ProfileApp {
         this.renderProfileView();
         this.showToast(data.message || (newAvailable ? 'Marked as Available!' : 'Marked as Unavailable.'));
       } else {
+        if (availCheckbox) availCheckbox.checked = !newAvailable;
         alert(data.error || 'Failed to update availability status.');
+        this.renderProfileView();
       }
     } catch (err) {
       console.error('Error toggling availability:', err);
+      if (availCheckbox) availCheckbox.checked = !newAvailable;
       alert('Server error while updating availability.');
-    } finally {
-      if (toggleBtn) toggleBtn.disabled = false;
+      this.renderProfileView();
     }
   }
 

@@ -234,15 +234,20 @@
           </button>
         </div>
 
-        <!-- AVAILABILITY STATUS TOGGLE BOX -->
+        <!-- AVAILABILITY STATUS TOGGLE SWITCH BOX -->
         <div class="availability-toggle-box" style="margin: 1.25rem 0; padding: 1.1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
           <div>
             <h4 style="margin: 0 0 0.25rem 0; font-size: 1rem; font-family: var(--font-heading);">⚡ Availability Status</h4>
             <p class="form-desc" style="margin: 0; font-size: 0.85rem;">Toggle your availability to accept blood donation requests in emergency searches.</p>
           </div>
-          <button type="button" id="toggleAvailabilityBtn" onclick="profileApp.toggleAvailabilityStatus()" class="btn btn-primary" style="font-weight: 700; padding: 0.6rem 1.25rem; white-space: nowrap;">
-            🟢 Available for Donation
-          </button>
+          
+          <label class="toggle-switch-container">
+            <input type="checkbox" id="availabilityToggleCheckbox" class="toggle-switch-input" onchange="profileApp.toggleAvailabilityStatus()">
+            <span class="toggle-switch-slider"></span>
+            <span id="availabilityStatusLabel" style="font-weight: 700; font-size: 0.95rem; min-width: 170px;">
+              🟢 Available for Donation
+            </span>
+          </label>
         </div>
 
         <!-- COOLING PERIOD ALERT BANNER -->
