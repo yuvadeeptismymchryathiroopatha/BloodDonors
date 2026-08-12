@@ -161,6 +161,7 @@ async function syncUserProfileToDataRecords(userId) {
       computedAge = calculateAgeFromDob(user.dob);
     }
 
+    const availText = user.is_available !== false ? "Available" : "Unavailable";
     const formattedRecord = {
       "Name": user.name,
       "Age": computedAge !== null && computedAge !== undefined ? computedAge.toString() : (user.age ? user.age.toString() : "25"),
@@ -172,7 +173,9 @@ async function syncUserProfileToDataRecords(userId) {
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
       "Last Donation Date": formatDateSafe(user.last_donation_date) || "",
-      "Availability Status": user.is_available !== false ? "Available" : "Unavailable"
+      "Availability Status": availText,
+      "Status": availText,
+      "Availability": availText
     };
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
@@ -1354,14 +1357,17 @@ app.get('/api/search', async (req, res) => {
         }
       }
 
-      const isMarkedUnavailable = rec['Availability Status'] === 'Unavailable' || rec['Availability'] === 'Unavailable' || rec['is_available'] === false;
+      const isMarkedUnavailable = rec['Availability Status'] === 'Unavailable' || rec['Status'] === 'Unavailable' || rec['Availability'] === 'Unavailable' || rec['is_available'] === false;
       let isAvailable = isAgeEligible && !isCoolingPeriod && !isMarkedUnavailable;
       let statusBadge = '🟢 Available to Donate';
 
       if (!isAgeEligible) {
         statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
       } else if (isMarkedUnavailable) {
-        statusBadge = `🔴 Unavailable (Marked Inactive)`;
+        statusBadge = `🔴 Unavailable for Donation`;
+        rec['Availability Status'] = 'Unavailable';
+        rec['Status'] = 'Unavailable';
+        rec['Availability'] = 'Unavailable';
       } else if (isCoolingPeriod) {
         statusBadge = `🟡 In Cooling Period (${coolingDaysLeft} Days Left)`;
       }

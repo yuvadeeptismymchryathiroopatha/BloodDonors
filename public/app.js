@@ -425,10 +425,14 @@ class BloodDonorApp {
       const val = donor[k];
       if (val !== undefined && val !== null && val !== '') {
         const displayVal = (k.toLowerCase().includes('phone') || k.toLowerCase().includes('age')) ? val.toString() : this.toSentenceCase(val.toString());
+        let valStyle = '';
+        if (k.toLowerCase().includes('status') || k.toLowerCase().includes('availability')) {
+          valStyle = val.toString().toLowerCase().includes('unavail') ? 'color:#dc2626; font-weight:700;' : 'color:#10b981; font-weight:700;';
+        }
         fieldsHtml += `
           <div class="field-row">
             <span class="field-label">${this.escapeHtml(k)}:</span>
-            <span class="field-value">${this.escapeHtml(displayVal)}</span>
+            <span class="field-value" style="${valStyle}">${this.escapeHtml(displayVal)}</span>
           </div>
         `;
       }
