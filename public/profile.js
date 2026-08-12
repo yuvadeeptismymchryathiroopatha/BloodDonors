@@ -425,7 +425,6 @@ class ProfileApp {
     document.getElementById('profileName').value = user.name || '';
     document.getElementById('profilePhone').value = user.phone || '';
     document.getElementById('profileBloodGroup').value = user.bloodGroup || 'O+';
-    document.getElementById('profileZone').value = user.zone || 'Changanacherry Zone';
     const profileForaneEl = document.getElementById('profileForane');
     if (profileForaneEl) profileForaneEl.value = user.forona || 'Changanacherry';
     const unitEl = document.getElementById('profileUnit');
@@ -434,6 +433,32 @@ class ProfileApp {
     if (dobEl) {
       dobEl.max = new Date().toISOString().split('T')[0];
       dobEl.value = user.dob || '';
+    }
+
+    // Check for Incomplete Profile (e.g., after Google Sign-In)
+    const isProfileIncomplete = !user.phone || !user.bloodGroup || !user.forona;
+    const alertEl = document.getElementById('profileAlert');
+    const profileEditBox = document.querySelector('.profile-edit-box');
+
+    if (isProfileIncomplete) {
+      if (alertEl) {
+        alertEl.className = 'alert alert-warning';
+        alertEl.innerHTML = '<strong>⚠️ Action Required:</strong> Please complete your Phone Number, Blood Group, and Forane details below to register as an active donor in the public search directory.';
+        alertEl.classList.remove('hidden');
+      }
+      if (profileEditBox) {
+        profileEditBox.style.border = '2px solid var(--primary)';
+        profileEditBox.style.borderRadius = 'var(--radius-lg)';
+        profileEditBox.style.padding = '1.25rem';
+        profileEditBox.style.backgroundColor = 'rgba(220, 38, 38, 0.05)';
+        setTimeout(() => {
+          profileEditBox.scrollIntoView({ behavior: 'smooth' });
+        }, 300);
+      }
+    } else if (profileEditBox) {
+      profileEditBox.style.border = 'none';
+      profileEditBox.style.padding = '0';
+      profileEditBox.style.backgroundColor = 'transparent';
     }
 
     // Donation Date
@@ -534,15 +559,24 @@ class ProfileApp {
 
   async updateProfileDetails(e) {
     e.preventDefault();
-    const name = document.getElementById('profileName')?.value || '';
-    const phone = document.getElementById('profilePhone')?.value || '';
+    const name = (document.getElementById('profileName')?.value || '').trim();
+    const phoneInput = (document.getElementById('profilePhone')?.value || '').trim();
     const bloodGroup = document.getElementById('profileBloodGroup')?.value || '';
-    const zone = document.getElementById('profileZone')?.value || '';
     const forona = document.getElementById('profileForane')?.value || '';
-    const unit = document.getElementById('profileUnit')?.value || '';
+    const unit = (document.getElementById('profileUnit')?.value || '').trim();
     const dob = document.getElementById('profileDob')?.value || '';
     const alertEl = document.getElementById('profileAlert');
     const saveBtn = document.getElementById('saveProfileBtn');
+
+    // Indian Phone Number Range Validation (10 digits between 6000000000 and 9999999999)
+    const cleanPhone = phoneInput.replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+    const phoneNum = Number(cleanPhone);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone) || isNaN(phoneNum) || phoneNum < 6000000000 || phoneNum > 9999999999) {
+      alertEl.className = 'alert alert-danger';
+      alertEl.textContent = 'Phone number must be a valid 10-digit Indian phone number (between 6000000000 and 9999999999).';
+      alertEl.classList.remove('hidden');
+      return;
+    }
 
     if (dob) {
       const dDate = new Date(dob);
@@ -555,6 +589,9 @@ class ProfileApp {
       }
     }
 
+    // Derive Zone automatically from Forane
+    const zone = this.getZoneFromForane(forona);
+
     alertEl.classList.add('hidden');
     saveBtn.disabled = true;
     saveBtn.textContent = 'Saving & Syncing...';
@@ -564,7 +601,7 @@ class ProfileApp {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name, phone, bloodGroup, zone, forona, unit, dob
+          name, phone: cleanPhone, bloodGroup, zone, forona, unit, dob
         })
       });
 
