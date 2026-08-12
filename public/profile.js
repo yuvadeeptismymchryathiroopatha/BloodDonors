@@ -149,6 +149,20 @@ class ProfileApp {
     return `${forane} Zone`;
   }
 
+  calculateAge(dobStr) {
+    if (!dobStr) return null;
+    const dob = new Date(dobStr);
+    if (isNaN(dob.getTime())) return null;
+
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const monthDiff = today.getMonth() - dob.getMonth();
+    if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+    return age;
+  }
+
   async handleRegister(e) {
     e.preventDefault();
     const name = (document.getElementById('regName')?.value || '').trim();
@@ -186,14 +200,17 @@ class ProfileApp {
       return;
     }
 
-    if (dob) {
-      const dDate = new Date(dob);
-      const today = new Date();
-      if (dDate > today) {
-        errorEl.textContent = 'Date of birth cannot be in the future.';
-        errorEl.classList.remove('hidden');
-        return;
-      }
+    if (!dob) {
+      errorEl.textContent = 'Date of birth is required to register.';
+      errorEl.classList.remove('hidden');
+      return;
+    }
+
+    const age = this.calculateAge(dob);
+    if (age === null || age < 18 || age > 55) {
+      errorEl.textContent = 'Only donors between 18 and 55 years of age are eligible to register.';
+      errorEl.classList.remove('hidden');
+      return;
     }
 
     // Derive Zone automatically from Forane
@@ -579,11 +596,10 @@ class ProfileApp {
     }
 
     if (dob) {
-      const dDate = new Date(dob);
-      const today = new Date();
-      if (dDate > today) {
+      const age = this.calculateAge(dob);
+      if (age === null || age < 18 || age > 55) {
         alertEl.className = 'alert alert-danger';
-        alertEl.textContent = 'Date of birth cannot be in the future.';
+        alertEl.textContent = 'Only donors between 18 and 55 years of age are eligible to register.';
         alertEl.classList.remove('hidden');
         return;
       }

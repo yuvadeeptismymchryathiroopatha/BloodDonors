@@ -332,14 +332,13 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
-    let computedAge = age ? parseInt(age, 10) : null;
-    if (dob) {
-      const dDate = new Date(dob);
-      const today = new Date();
-      if (dDate > today) {
-        return res.status(400).json({ success: false, error: 'Date of birth cannot be in the future.' });
-      }
-      computedAge = calculateAgeFromDob(dob);
+    if (!dob) {
+      return res.status(400).json({ success: false, error: 'Date of birth is required for donor registration.' });
+    }
+
+    const computedAge = calculateAgeFromDob(dob);
+    if (computedAge === null || computedAge < 18 || computedAge > 55) {
+      return res.status(400).json({ success: false, error: 'Only donors between 18 and 55 years of age are eligible to register.' });
     }
 
     const salt = await bcrypt.genSalt(10);
@@ -572,12 +571,10 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
 
     let computedAge = age ? parseInt(age, 10) : null;
     if (dob) {
-      const dDate = new Date(dob);
-      const today = new Date();
-      if (dDate > today) {
-        return res.status(400).json({ success: false, error: 'Date of birth cannot be in the future.' });
-      }
       computedAge = calculateAgeFromDob(dob);
+      if (computedAge === null || computedAge < 18 || computedAge > 55) {
+        return res.status(400).json({ success: false, error: 'Only donors between 18 and 55 years of age are eligible to register.' });
+      }
     }
 
     const updateRes = await pool.query(
