@@ -220,7 +220,7 @@
 
       <!-- VIEW 2: LOGGED-IN USER PROFILE & DONATION DATE UPDATER CARD -->
       <div id="profileContainer" class="profile-card card hidden">
-        <div class="profile-header">
+        <div class="profile-header" style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
           <img id="profilePic" src="" alt="" class="profile-avatar" style="display:none;">
           <div class="profile-title-box">
             <h2 id="profileNameHeading" class="profile-name">Donor Profile</h2>
@@ -229,6 +229,20 @@
           <span id="profileStatusBadge" class="profile-status-badge status-active">
             🟢 Active Donor (Eligible)
           </span>
+          <button type="button" id="signOutBtn" onclick="profileApp.logoutUser()" class="btn btn-outline btn-sm" style="margin-left:auto; font-weight:600; padding:0.5rem 0.9rem;">
+            🚪 Sign Out
+          </button>
+        </div>
+
+        <!-- AVAILABILITY STATUS TOGGLE BOX -->
+        <div class="availability-toggle-box" style="margin: 1.25rem 0; padding: 1.1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-elevated); display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+          <div>
+            <h4 style="margin: 0 0 0.25rem 0; font-size: 1rem; font-family: var(--font-heading);">⚡ Availability Status</h4>
+            <p class="form-desc" style="margin: 0; font-size: 0.85rem;">Toggle your availability to accept blood donation requests in emergency searches.</p>
+          </div>
+          <button type="button" id="toggleAvailabilityBtn" onclick="profileApp.toggleAvailabilityStatus()" class="btn btn-primary" style="font-weight: 700; padding: 0.6rem 1.25rem; white-space: nowrap;">
+            🟢 Available for Donation
+          </button>
         </div>
 
         <!-- COOLING PERIOD ALERT BANNER -->

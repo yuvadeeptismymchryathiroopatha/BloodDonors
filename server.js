@@ -170,7 +170,8 @@ async function syncUserProfileToDataRecords(userId) {
       "Zone": user.zone || "Changanacherry Zone",
       "Blood Group": user.blood_group || "O+",
       "Email": user.email,
-      "Last Donation Date": formatDateSafe(user.last_donation_date) || ""
+      "Last Donation Date": formatDateSafe(user.last_donation_date) || "",
+      "Availability Status": user.is_available !== false ? "Available" : "Unavailable"
     };
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
@@ -278,7 +279,8 @@ app.post('/api/auth/google', async (req, res) => {
       unit: user.unit,
       dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: formatDateSafe(user.last_donation_date)
+      lastDonationDate: formatDateSafe(user.last_donation_date),
+      isAvailable: user.is_available !== false
     };
 
     return res.json({
@@ -376,7 +378,8 @@ app.post('/api/auth/register', async (req, res) => {
       unit: user.unit,
       dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: formatDateSafe(user.last_donation_date)
+      lastDonationDate: formatDateSafe(user.last_donation_date),
+      isAvailable: user.is_available !== false
     };
 
     await syncUserProfileToDataRecords(user.id);
@@ -428,7 +431,8 @@ app.post('/api/auth/login', async (req, res) => {
       unit: user.unit,
       dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: formatDateSafe(user.last_donation_date)
+      lastDonationDate: formatDateSafe(user.last_donation_date),
+      isAvailable: user.is_available !== false
     };
 
     return res.json({
@@ -618,19 +622,53 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       unit: user.unit,
       dob: formatDateSafe(user.dob),
       age: user.age,
-      lastDonationDate: formatDateSafe(user.last_donation_date)
+      lastDonationDate: formatDateSafe(user.last_donation_date),
+      isAvailable: user.is_available !== false
     };
 
     await syncUserProfileToDataRecords(user.id);
 
     return res.json({
       success: true,
-      message: 'Profile updated successfully!',
+      message: 'Profile details updated and synced to public blood donor directory!',
       user: req.session.user
     });
   } catch (err) {
-    console.error('Update profile error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to update user profile.' });
+    console.error('Error updating user profile:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update profile.' });
+  }
+});
+
+// UPDATE USER AVAILABILITY STATUS
+app.put('/api/user/availability', requireUser, async (req, res) => {
+  try {
+    const userId = req.session.user.id;
+    const { isAvailable } = req.body;
+    const boolVal = isAvailable !== false;
+
+    const updateRes = await pool.query(
+      'UPDATE users SET is_available = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
+      [boolVal, userId]
+    );
+
+    const user = updateRes.rows[0];
+
+    req.session.user = {
+      ...req.session.user,
+      isAvailable: user.is_available !== false
+    };
+
+    await syncUserProfileToDataRecords(user.id);
+
+    return res.json({
+      success: true,
+      message: boolVal ? 'You are now marked as AVAILABLE for blood donation.' : 'You are now marked as UNAVAILABLE for blood donation.',
+      isAvailable: boolVal,
+      user: req.session.user
+    });
+  } catch (err) {
+    console.error('Error updating availability status:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update availability status.' });
   }
 });
 
@@ -1315,11 +1353,14 @@ app.get('/api/search', async (req, res) => {
         }
       }
 
-      let isAvailable = isAgeEligible && !isCoolingPeriod;
+      const isMarkedUnavailable = rec['Availability Status'] === 'Unavailable' || rec['Availability'] === 'Unavailable' || rec['is_available'] === false;
+      let isAvailable = isAgeEligible && !isCoolingPeriod && !isMarkedUnavailable;
       let statusBadge = '🟢 Available to Donate';
 
       if (!isAgeEligible) {
         statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
+      } else if (isMarkedUnavailable) {
+        statusBadge = `🔴 Unavailable (Marked Inactive)`;
       } else if (isCoolingPeriod) {
         statusBadge = `🟡 In Cooling Period (${coolingDaysLeft} Days Left)`;
       }

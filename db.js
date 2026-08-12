@@ -71,6 +71,7 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS last_donation_date DATE;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT true;
     `);
 
     // Create data_records table

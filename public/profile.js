@@ -478,6 +478,20 @@ class ProfileApp {
       profileEditBox.style.backgroundColor = 'transparent';
     }
 
+    // Availability Status Toggle Button State
+    const isAvailable = user.isAvailable !== false;
+    const toggleAvailBtn = document.getElementById('toggleAvailabilityBtn');
+    if (toggleAvailBtn) {
+      if (isAvailable) {
+        toggleAvailBtn.className = 'btn btn-primary';
+        toggleAvailBtn.textContent = '🟢 Available for Donation';
+      } else {
+        toggleAvailBtn.className = 'btn btn-outline';
+        toggleAvailBtn.style.borderColor = 'var(--primary)';
+        toggleAvailBtn.textContent = '🔴 Marked Unavailable (Click to Enable)';
+      }
+    }
+
     // Donation Date
     const lastDateInput = document.getElementById('profileLastDonationDate');
     const coolingInfoEl = document.getElementById('coolingPeriodInfo');
@@ -485,7 +499,10 @@ class ProfileApp {
       lastDateInput.max = new Date().toISOString().split('T')[0];
     }
 
-    if (user.lastDonationDate) {
+    if (!isAvailable && statusBadgeEl) {
+      statusBadgeEl.className = 'profile-status-badge status-ineligible';
+      statusBadgeEl.textContent = '🔴 Marked Unavailable (Inactive)';
+    } else if (user.lastDonationDate) {
       lastDateInput.value = user.lastDonationDate;
       this.calculateCoolingPeriod(user.lastDonationDate, statusBadgeEl, coolingInfoEl);
     } else {
@@ -527,6 +544,40 @@ class ProfileApp {
         `;
         infoEl.classList.remove('hidden');
       }
+    }
+  }
+
+  async toggleAvailabilityStatus() {
+    const currentAvailable = this.currentUser ? (this.currentUser.isAvailable !== false) : true;
+    const newAvailable = !currentAvailable;
+    const toggleBtn = document.getElementById('toggleAvailabilityBtn');
+
+    if (toggleBtn) {
+      toggleBtn.disabled = true;
+      toggleBtn.textContent = 'Updating Status...';
+    }
+
+    try {
+      const res = await fetch('/api/user/availability', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isAvailable: newAvailable })
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        if (this.currentUser) this.currentUser.isAvailable = newAvailable;
+        this.renderProfileView();
+        this.showToast(data.message || (newAvailable ? 'Marked as Available!' : 'Marked as Unavailable.'));
+      } else {
+        alert(data.error || 'Failed to update availability status.');
+      }
+    } catch (err) {
+      console.error('Error toggling availability:', err);
+      alert('Server error while updating availability.');
+    } finally {
+      if (toggleBtn) toggleBtn.disabled = false;
     }
   }
 

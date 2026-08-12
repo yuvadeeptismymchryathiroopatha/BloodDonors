@@ -2268,3 +2268,16 @@ body {
     animation: none;
   }
 }
+
+.donor-card-faded {
+  opacity: 0.72;
+  filter: grayscale(0.2);
+  background: var(--bg-subtle);
+  border-top-color: var(--text-muted) !important;
+}
+
+.status-ineligible {
+  background: rgba(220, 38, 38, 0.12);
+  color: #dc2626;
+  border: 1px solid rgba(220, 38, 38, 0.25);
+}
