@@ -90,11 +90,27 @@ class ProfileApp {
         if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
           clearInterval(interval);
           renderGoogleBtn();
-        } else if (attempts > 15) {
+        } else if (attempts > 20) {
           clearInterval(interval);
         }
       }, 200);
     }
+  }
+
+  promptGoogleEmailLogin() {
+    if (typeof google !== 'undefined' && google.accounts && google.accounts.id) {
+      try {
+        google.accounts.id.initialize({
+          client_id: this.googleClientId || '788181288036-3q8gb7vubkp0raidlqkngd8j3l8aetcv.apps.googleusercontent.com',
+          callback: (response) => this.handleGoogleCallback(response)
+        });
+        google.accounts.id.prompt();
+        return;
+      } catch (e) {
+        console.warn('Google One Tap prompt failed:', e);
+      }
+    }
+    alert('Loading Google Sign-In... Please ensure your network allows connecting to Google services.');
   }
 
   async handleGoogleCallback(response) {
