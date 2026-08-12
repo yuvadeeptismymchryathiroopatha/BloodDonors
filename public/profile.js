@@ -461,15 +461,16 @@ class ProfileApp {
     document.getElementById('authContainer')?.classList.add('hidden');
     document.getElementById('profileContainer')?.classList.remove('hidden');
 
-    const nameEl = document.getElementById('userName');
-    const emailEl = document.getElementById('userEmail');
-    const avatarEl = document.getElementById('userAvatar');
-    const statusBadgeEl = document.getElementById('userStatusBadge');
+    const nameEl = document.getElementById('profileNameHeading');
+    const emailEl = document.getElementById('profileEmail');
+    const avatarEl = document.getElementById('profilePic');
+    const statusBadgeEl = document.getElementById('profileStatusBadge');
 
-    if (nameEl) nameEl.textContent = user.name || 'Donor User';
+    if (nameEl) nameEl.textContent = user.name || 'Donor Profile';
     if (emailEl) emailEl.textContent = user.email || '';
     if (avatarEl) {
       avatarEl.src = user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=dc2626&color=fff`;
+      avatarEl.style.display = 'block';
     }
 
     // Update Header and Summary Display Card
@@ -480,6 +481,7 @@ class ProfileApp {
     const displayDonorZone = document.getElementById('displayDonorZone');
     const displayDonorUnit = document.getElementById('displayDonorUnit');
     const displayDonorDob = document.getElementById('displayDonorDob');
+    const displayDonorAvailability = document.getElementById('displayDonorAvailability');
     const displayDonorLastDonation = document.getElementById('displayDonorLastDonation');
 
     if (displayDonorName) displayDonorName.textContent = user.name || '-';
@@ -491,6 +493,11 @@ class ProfileApp {
     if (displayDonorDob) {
       const ageStr = user.age ? ` (Age ${user.age})` : '';
       displayDonorDob.textContent = user.dob ? `${user.dob}${ageStr}` : 'Not provided';
+    }
+    const isAvailable = user.isAvailable !== false;
+    if (displayDonorAvailability) {
+      displayDonorAvailability.textContent = isAvailable ? '🟢 Available for Donation' : '🔴 Unavailable for Donation';
+      displayDonorAvailability.style.color = isAvailable ? '#10b981' : '#dc2626';
     }
     if (displayDonorLastDonation) displayDonorLastDonation.textContent = user.lastDonationDate || 'No previous donation recorded';
 
@@ -555,9 +562,12 @@ class ProfileApp {
       lastDateInput.max = new Date().toISOString().split('T')[0];
     }
 
-    if (!isAvailable && statusBadgeEl) {
-      statusBadgeEl.className = 'profile-status-badge status-ineligible';
-      statusBadgeEl.textContent = '🔴 Marked Unavailable (Inactive)';
+    if (!isAvailable) {
+      if (statusBadgeEl) {
+        statusBadgeEl.className = 'profile-status-badge status-ineligible';
+        statusBadgeEl.textContent = '🔴 Unavailable for Donation';
+      }
+      if (coolingInfoEl) coolingInfoEl.classList.add('hidden');
     } else if (user.lastDonationDate) {
       lastDateInput.value = user.lastDonationDate;
       this.calculateCoolingPeriod(user.lastDonationDate, statusBadgeEl, coolingInfoEl);

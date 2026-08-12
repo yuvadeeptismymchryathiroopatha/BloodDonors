@@ -438,7 +438,7 @@ class BloodDonorApp {
     let waPhone = cleanPhone.replace(/^\+/, '');
     if (waPhone.length === 10) waPhone = '91' + waPhone;
 
-    const statusBadgeText = donor._statusBadge || (isAvailable ? '🟢 Available to Donate' : '⚠️ Non-Active');
+    const statusBadgeText = donor._statusBadge || (isAvailable ? '🟢 Available to Donate' : '🔴 Unavailable for Donation');
     const badgeClass = isAvailable ? 'status-active' : (donor._coolingDaysLeft > 0 ? 'status-cooling' : 'status-ineligible');
 
     card.innerHTML = `
