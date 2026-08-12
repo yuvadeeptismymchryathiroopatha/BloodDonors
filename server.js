@@ -32,8 +32,9 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'blood_donor_portal_secret_2026',
   resave: false,
   saveUninitialized: false,
+  rolling: true, // Renews 1-year session cookie expiration on user activity
   cookie: {
-    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 full year (365 days)
     httpOnly: true,
     sameSite: 'lax'
   }
