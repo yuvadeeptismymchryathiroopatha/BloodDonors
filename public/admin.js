@@ -102,8 +102,9 @@ class AdminApp {
       const res = await fetch('/api/schema');
       const data = await res.json();
       if (data.success) {
-        this.schema = data.schema;
+        this.schema = data;
         this.renderAdminFilterDropdowns();
+        this.updateDatasetMeta();
       }
     } catch (err) {
       console.error('Failed to load schema:', err);
@@ -202,6 +203,8 @@ class AdminApp {
   // --- ADMIN DATA TABLE & MARK DONATED ---
 
   async loadAdminTable() {
+    if (!this.isAdminLoggedIn) return;
+
     const tableHeadRow = document.getElementById('adminTableHeadRow');
     const tableBody = document.getElementById('adminTableBody');
     const indicator = document.getElementById('adminPageIndicator');
@@ -482,7 +485,7 @@ class AdminApp {
     if (!container) return;
 
     container.innerHTML = '';
-    const filterableOpts = this.schema.filterableOptions || {};
+    const filterableOpts = (this.schema && this.schema.filterableOptions) ? this.schema.filterableOptions : {};
 
     const keyFields = ['Zone', 'Forane', 'Blood Group'];
 
@@ -549,6 +552,8 @@ class AdminApp {
   // --- ANALYTICS DASHBOARD ---
 
   async loadAnalytics() {
+    if (!this.isAdminLoggedIn) return;
+
     const totalEl = document.getElementById('statTotalDonors');
     const eligibleEl = document.getElementById('statEligibleDonors');
     const nonActiveEl = document.getElementById('statNonActiveDonors');
