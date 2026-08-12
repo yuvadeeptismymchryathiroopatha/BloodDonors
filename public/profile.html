@@ -275,9 +275,54 @@
           </form>
         </div>
 
-        <!-- PROFILE DETAILS EDIT FORM -->
-        <div class="profile-edit-box" style="margin-top:2rem;">
-          <h4>✏️ Update Donor Information</h4>
+        <!-- DONOR DATA DISPLAY CARD -->
+        <div class="donor-display-box" style="margin-top: 1.5rem; padding: 1.25rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-elevated);">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+            <h4 style="margin: 0; font-family: var(--font-heading); font-size: 1.1rem;">📋 Donor Information</h4>
+            <button type="button" id="toggleEditProfileBtn" onclick="profileApp.toggleEditProfileForm()" class="btn btn-outline btn-sm" style="font-weight: 600;">
+              ✏️ Edit Profile Information
+            </button>
+          </div>
+
+          <div class="profile-info-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">FULL NAME</span>
+              <strong id="displayDonorName" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">PHONE NUMBER</span>
+              <strong id="displayDonorPhone" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">BLOOD GROUP</span>
+              <strong id="displayDonorBloodGroup" style="font-size: 1rem; color: var(--primary); font-weight: 700;">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">FORANE</span>
+              <strong id="displayDonorForane" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">ZONE</span>
+              <strong id="displayDonorZone" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">UNIT</span>
+              <strong id="displayDonorUnit" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">DATE OF BIRTH / AGE</span>
+              <strong id="displayDonorDob" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+            <div class="info-item">
+              <span style="font-size: 0.75rem; color: var(--text-muted); display: block; font-weight: 700; letter-spacing: 0.05em; margin-bottom: 0.2rem;">LAST DONATION DATE</span>
+              <strong id="displayDonorLastDonation" style="font-size: 0.95rem; color: var(--text-main);">-</strong>
+            </div>
+          </div>
+        </div>
+
+        <!-- PROFILE DETAILS EDIT FORM (COLLAPSIBLE / ONLY SHOWN WHEN EDITED) -->
+        <div id="profileEditBox" class="profile-edit-box hidden" style="margin-top:1.5rem; padding:1.25rem; border:1px solid var(--border-color); border-radius:var(--radius-md); background:var(--bg-subtle);">
+          <h4 style="margin-top:0;">✏️ Edit Donor Information</h4>
           <form id="profileDetailsForm" onsubmit="profileApp.updateProfileDetails(event)">
             <div class="form-grid">
               <div class="form-group">
@@ -329,16 +374,21 @@
                 <input type="text" id="profileUnit" placeholder="e.g. St. Thomas Unit">
               </div>
               <div class="form-group">
-                <label for="profileDob">Date of Birth (DOB)</label>
+                <label for="profileDob">Date of Birth (DOB) <span class="required">*</span></label>
                 <input type="date" id="profileDob">
               </div>
             </div>
 
             <div id="profileAlert" class="alert hidden"></div>
 
-            <button type="submit" id="saveProfileBtn" class="btn btn-primary">
-              💾 Update Profile & Sync to Donor Directory
-            </button>
+            <div style="display:flex; gap:0.75rem; flex-wrap:wrap; margin-top:1rem;">
+              <button type="submit" id="saveProfileBtn" class="btn btn-primary" style="flex:1;">
+                💾 Update Profile & Sync to Donor Directory
+              </button>
+              <button type="button" onclick="profileApp.toggleEditProfileForm()" class="btn btn-outline">
+                Cancel
+              </button>
+            </div>
           </form>
         </div>
 

@@ -11,8 +11,27 @@ class ProfileApp {
   }
 
   async init() {
+    this.setupDobDateLimits();
     await this.fetchConfig();
     await this.checkUserStatus();
+  }
+
+  setupDobDateLimits() {
+    const today = new Date();
+    const maxDob = new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()).toISOString().split('T')[0];
+    const minDob = new Date(today.getFullYear() - 55, today.getMonth(), today.getDate()).toISOString().split('T')[0];
+
+    const regDobEl = document.getElementById('regDob');
+    if (regDobEl) {
+      regDobEl.max = maxDob;
+      regDobEl.min = minDob;
+    }
+
+    const profileDobEl = document.getElementById('profileDob');
+    if (profileDobEl) {
+      profileDobEl.max = maxDob;
+      profileDobEl.min = minDob;
+    }
   }
 
   async fetchConfig() {
@@ -133,6 +152,21 @@ class ProfileApp {
     } else {
       regTab.classList.add('hidden');
       if (toggleBtn) toggleBtn.textContent = '✍️ Create New Donor Profile';
+    }
+  }
+
+  toggleEditProfileForm() {
+    const editBox = document.getElementById('profileEditBox');
+    const toggleBtn = document.getElementById('toggleEditProfileBtn');
+    if (!editBox) return;
+
+    if (editBox.classList.contains('hidden')) {
+      editBox.classList.remove('hidden');
+      if (toggleBtn) toggleBtn.textContent = '❌ Close Edit Form';
+      editBox.scrollIntoView({ behavior: 'smooth' });
+    } else {
+      editBox.classList.add('hidden');
+      if (toggleBtn) toggleBtn.textContent = '✏️ Edit Profile Information';
     }
   }
 
@@ -438,44 +472,67 @@ class ProfileApp {
       avatarEl.src = user.picture || `https://ui-avatars.com/api/?name=${encodeURIComponent(user.name || 'User')}&background=dc2626&color=fff`;
     }
 
-    // Populate Fields
-    document.getElementById('profileName').value = user.name || '';
-    document.getElementById('profilePhone').value = user.phone || '';
-    document.getElementById('profileBloodGroup').value = user.bloodGroup || 'O+';
+    // Update Header and Summary Display Card
+    const displayDonorName = document.getElementById('displayDonorName');
+    const displayDonorPhone = document.getElementById('displayDonorPhone');
+    const displayDonorBloodGroup = document.getElementById('displayDonorBloodGroup');
+    const displayDonorForane = document.getElementById('displayDonorForane');
+    const displayDonorZone = document.getElementById('displayDonorZone');
+    const displayDonorUnit = document.getElementById('displayDonorUnit');
+    const displayDonorDob = document.getElementById('displayDonorDob');
+    const displayDonorLastDonation = document.getElementById('displayDonorLastDonation');
+
+    if (displayDonorName) displayDonorName.textContent = user.name || '-';
+    if (displayDonorPhone) displayDonorPhone.textContent = user.phone || 'Not provided';
+    if (displayDonorBloodGroup) displayDonorBloodGroup.textContent = user.bloodGroup || 'Not specified';
+    if (displayDonorForane) displayDonorForane.textContent = user.forona || 'Not specified';
+    if (displayDonorZone) displayDonorZone.textContent = user.zone || (user.forona ? this.getZoneFromForane(user.forona) : 'Not specified');
+    if (displayDonorUnit) displayDonorUnit.textContent = user.unit || 'None';
+    if (displayDonorDob) {
+      const ageStr = user.age ? ` (Age ${user.age})` : '';
+      displayDonorDob.textContent = user.dob ? `${user.dob}${ageStr}` : 'Not provided';
+    }
+    if (displayDonorLastDonation) displayDonorLastDonation.textContent = user.lastDonationDate || 'No previous donation recorded';
+
+    // Ensure DOB date limits are set
+    this.setupDobDateLimits();
+
+    // Populate Edit Form Fields
+    const profileNameEl = document.getElementById('profileName');
+    if (profileNameEl) profileNameEl.value = user.name || '';
+    const profilePhoneEl = document.getElementById('profilePhone');
+    if (profilePhoneEl) profilePhoneEl.value = user.phone || '';
+    const profileBloodEl = document.getElementById('profileBloodGroup');
+    if (profileBloodEl) profileBloodEl.value = user.bloodGroup || 'O+';
     const profileForaneEl = document.getElementById('profileForane');
     if (profileForaneEl) profileForaneEl.value = user.forona || 'Changanacherry';
     const unitEl = document.getElementById('profileUnit');
     if (unitEl) unitEl.value = user.unit || '';
     const dobEl = document.getElementById('profileDob');
-    if (dobEl) {
-      dobEl.max = new Date().toISOString().split('T')[0];
-      dobEl.value = user.dob || '';
-    }
+    if (dobEl) dobEl.value = user.dob || '';
 
     // Check for Incomplete Profile (e.g., after Google Sign-In)
-    const isProfileIncomplete = !user.phone || !user.bloodGroup || !user.forona;
+    const isProfileIncomplete = !user.phone || !user.bloodGroup || !user.forona || !user.dob;
     const alertEl = document.getElementById('profileAlert');
-    const profileEditBox = document.querySelector('.profile-edit-box');
+    const profileEditBox = document.getElementById('profileEditBox');
+    const toggleEditBtn = document.getElementById('toggleEditProfileBtn');
 
     if (isProfileIncomplete) {
       if (alertEl) {
         alertEl.className = 'alert alert-warning';
-        alertEl.innerHTML = '<strong>⚠️ Action Required:</strong> Please complete your Phone Number, Blood Group, and Forane details below to register as an active donor in the public search directory.';
+        alertEl.innerHTML = '<strong>⚠️ Action Required:</strong> Please complete your Phone Number, Blood Group, Forane, and Date of Birth details below to activate your donor profile in the public search directory.';
         alertEl.classList.remove('hidden');
       }
       if (profileEditBox) {
-        profileEditBox.style.border = '2px solid var(--primary)';
-        profileEditBox.style.borderRadius = 'var(--radius-lg)';
-        profileEditBox.style.padding = '1.25rem';
-        profileEditBox.style.backgroundColor = 'rgba(220, 38, 38, 0.05)';
+        profileEditBox.classList.remove('hidden');
+        if (toggleEditBtn) toggleEditBtn.textContent = '❌ Close Edit Form';
         setTimeout(() => {
           profileEditBox.scrollIntoView({ behavior: 'smooth' });
         }, 300);
       }
     } else if (profileEditBox) {
-      profileEditBox.style.border = 'none';
-      profileEditBox.style.padding = '0';
-      profileEditBox.style.backgroundColor = 'transparent';
+      profileEditBox.classList.add('hidden');
+      if (toggleEditBtn) toggleEditBtn.textContent = '✏️ Edit Profile Information';
     }
 
     // Availability Status Toggle Button State
@@ -686,6 +743,12 @@ class ProfileApp {
         alertEl.textContent = 'Profile details updated and synced to public blood donor directory!';
         alertEl.classList.remove('hidden');
         this.showToast('Profile updated & synced to search directory!');
+
+        // Collapse edit form after successful save
+        const profileEditBox = document.getElementById('profileEditBox');
+        const toggleEditBtn = document.getElementById('toggleEditProfileBtn');
+        if (profileEditBox) profileEditBox.classList.add('hidden');
+        if (toggleEditBtn) toggleEditBtn.textContent = '✏️ Edit Profile Information';
       } else {
         alertEl.className = 'alert alert-danger';
         alertEl.textContent = (data && data.error) ? data.error : `Failed to update profile (${res.status || 'Server error'}).`;

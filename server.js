@@ -249,9 +249,9 @@ app.post('/api/auth/google', async (req, res) => {
     let user;
 
     if (userRes.rows.length === 0) {
-      // Insert new Google User
+      // Insert new Google User (default is_available = true)
       const insertRes = await pool.query(
-        'INSERT INTO users (google_id, email, name, picture) VALUES ($1, $2, $3, $4) RETURNING *',
+        'INSERT INTO users (google_id, email, name, picture, is_available) VALUES ($1, $2, $3, $4, true) RETURNING *',
         [googleId, email, name, picture]
       );
       user = insertRes.rows[0];
@@ -347,8 +347,8 @@ app.post('/api/auth/register', async (req, res) => {
     const passwordHash = await bcrypt.hash(password, salt);
 
     const insertRes = await pool.query(
-      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, unit, dob, age, last_donation_date) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *`,
+      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, unit, dob, age, last_donation_date, is_available) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true) RETURNING *`,
       [
         email.trim(),
         passwordHash,
