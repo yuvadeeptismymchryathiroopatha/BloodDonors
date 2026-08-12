@@ -88,48 +88,101 @@
         </form>
       </div>
 
-      <!-- ADMIN DASHBOARD (When Logged In) -->
+      <!-- ADMIN DASHBOARD (When Logged In - UNIFIED SINGLE SECTION) -->
       <div id="adminDashboardContainer" class="admin-dashboard card hidden">
         
-        <!-- Navigation Tabs -->
-        <div class="tab-buttons">
+        <!-- OVERVIEW STAT SUMMARY CARDS -->
+        <div class="analytics-summary-grid" style="margin-bottom: 1.5rem;">
+          <div class="stat-card">
+            <div class="stat-icon">👥</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statTotalDonors">0</span>
+              <span class="stat-label">Total Registered Donors</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">✅</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statEligibleDonors">0</span>
+              <span class="stat-label">Active Eligible Donors (18-55)</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">⚠️</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statNonActiveDonors">0</span>
+              <span class="stat-label">Non-Active / Unavailable Donors</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">🩸</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statDonatedRecently">0</span>
+              <span class="stat-label">In Cooling Period (&lt; 90 Days)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- NAVIGATION SHORTCUT TABS -->
+        <div class="tab-buttons" style="margin-bottom: 1.25rem;">
           <button class="tab-btn active" id="tabTableBtn" onclick="adminApp.switchTab('table')">
-            📊 Data Table & Actions
+            📊 Donor Directory & Record Management
           </button>
           <button class="tab-btn" id="tabAnalyticsBtn" onclick="adminApp.switchTab('analytics')">
-            📈 Analytics & Breakdown
+            📈 Regional & Group Analytics
           </button>
           <button class="tab-btn" id="tabUploadBtn" onclick="adminApp.switchTab('upload')">
             📤 Upload CSV File
           </button>
           <button class="tab-btn" id="tabSettingsBtn" onclick="adminApp.switchTab('settings')">
-            🔑 Change Credentials
+            🔑 Admin Settings
           </button>
         </div>
 
-        <!-- TAB 1: DATA TABLE WITH STATUS FILTER (ACTIVE vs NON-ACTIVE) -->
+        <!-- UNIFIED SINGLE SECTION: DONOR DIRECTORY & RECORD MANAGEMENT -->
         <div id="tabTable" class="tab-content">
-          <div class="admin-table-toolbar">
-            <div class="toolbar-left">
-              <div class="admin-search-input">
-                <input type="text" id="adminSearchInput" placeholder="Search in table..." onkeyup="adminApp.filterAdminTable()">
+          <!-- SEARCH & CONDITION FILTER CONTROLS BAR -->
+          <div class="admin-table-toolbar" style="flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
+            <div class="toolbar-left" style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center; flex: 1;">
+              <div class="admin-search-input" style="flex: 1; min-width: 220px;">
+                <input type="text" id="adminSearchInput" placeholder="Search by name, phone, area, or keyword..." onkeyup="adminApp.filterAdminTable()">
               </div>
-              <div class="status-filter-select">
+              <div class="status-filter-select" style="min-width: 200px;">
                 <select id="adminStatusFilter" onchange="adminApp.filterByStatus(this.value)" class="filter-select">
                   <option value="all" selected>All Donors (Active & Non-Active)</option>
                   <option value="active">🟢 Active Donors Only (18 - 55)</option>
-                  <option value="non-active">⚠️ Non-Active Donors Only (Ineligible Age / Cooling Period)</option>
+                  <option value="non-active">⚠️ Non-Active / Unavailable Donors</option>
                 </select>
               </div>
-              <button id="bulkDeleteBtn" class="btn btn-danger btn-sm hidden" onclick="adminApp.confirmBulkDelete()">
+
+              <!-- Dynamic Dropdown Condition Filters (Zone, Forane, Blood Group) -->
+              <div id="adminFiltersContainer" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
+            </div>
+
+            <div class="toolbar-right" style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+              <!-- Bulk Delete Selected Button -->
+              <button id="bulkDeleteBtn" class="btn btn-danger btn-sm hidden" onclick="adminApp.confirmBulkDelete()" style="font-weight: 700;">
                 🗑️ Delete Selected (<span id="selectedCount">0</span>)
               </button>
-            </div>
-            <div class="toolbar-right">
+
+              <!-- Delete All Filtered Donors Button (Based on search & condition filters) -->
+              <button id="deleteFilteredBtn" class="btn btn-outline btn-sm hidden" onclick="adminApp.confirmDeleteFiltered()" style="border-color: #dc2626; color: #dc2626; font-weight: 700;">
+                🔥 Delete Filtered Donors (<span id="filteredCount">0</span>)
+              </button>
+
               <button class="btn btn-primary btn-sm" onclick="adminApp.openAddRecordModal()">
                 ➕ Add New Record
               </button>
             </div>
+          </div>
+
+          <!-- ACTIVE FILTER TAGS BANNER -->
+          <div id="adminFilterStatusBanner" class="alert alert-warning hidden" style="margin-bottom: 1rem; padding: 0.6rem 1rem; font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+            <span id="adminFilterStatusText"></span>
+            <button class="btn btn-outline btn-sm" onclick="adminApp.resetAdminFilters()" style="padding: 0.2rem 0.5rem; font-size: 0.8rem;">Reset Filters</button>
           </div>
 
           <div class="table-responsive">
@@ -148,7 +201,7 @@
             </table>
           </div>
 
-          <div id="adminTablePagination" class="pagination-wrapper">
+          <div id="adminTablePagination" class="pagination-wrapper" style="margin-top: 1.25rem;">
             <button id="adminPrevBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(-1)">&larr; Prev</button>
             <span id="adminPageIndicator" class="page-indicator">Page 1 of 1</span>
             <button id="adminNextBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(1)">Next &rarr;</button>

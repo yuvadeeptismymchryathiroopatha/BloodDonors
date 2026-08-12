@@ -15,6 +15,8 @@ class AdminApp {
     this.adminCurrentPage = 1;
     this.adminSearchQuery = '';
     this.adminStatusFilter = 'all'; // 'all', 'active', 'non-active'
+    this.adminFilters = {}; // { Zone, Forane, Blood Group }
+    this.currentFilteredRecordIds = [];
     this.adminRecordsMap = {};
     this.selectedRecordIds = new Set();
 
@@ -100,8 +102,8 @@ class AdminApp {
       const res = await fetch('/api/schema');
       const data = await res.json();
       if (data.success) {
-        this.schema = data;
-        this.updateDatasetMeta();
+        this.schema = data.schema;
+        this.renderAdminFilterDropdowns();
       }
     } catch (err) {
       console.error('Failed to load schema:', err);
@@ -218,13 +220,50 @@ class AdminApp {
         statusFilter: this.adminStatusFilter
       });
 
+      if (Object.keys(this.adminFilters).length > 0) {
+        queryParams.append('filters', JSON.stringify(this.adminFilters));
+      }
+
       const res = await fetch(`/api/admin/records?${queryParams.toString()}`);
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
 
       const records = data.records || [];
+      this.currentFilteredRecordIds = data.allFilteredIds || [];
       const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : (records.length > 0 ? Object.keys(records[0].data) : ['Name', 'Phone', 'District', 'Blood Group']);
+
+      // Update Filtered Count & Delete Filtered Donors Button Visibility
+      const filteredCountEl = document.getElementById('filteredCount');
+      const deleteFilteredBtn = document.getElementById('deleteFilteredBtn');
+      if (filteredCountEl) filteredCountEl.textContent = this.currentFilteredRecordIds.length;
+      
+      const hasActiveFilters = this.adminSearchQuery || this.adminStatusFilter !== 'all' || Object.keys(this.adminFilters).length > 0;
+      if (deleteFilteredBtn) {
+        if (hasActiveFilters && this.currentFilteredRecordIds.length > 0) {
+          deleteFilteredBtn.classList.remove('hidden');
+        } else {
+          deleteFilteredBtn.classList.add('hidden');
+        }
+      }
+
+      // Update Active Filter Tags Banner
+      const filterBanner = document.getElementById('adminFilterStatusBanner');
+      const filterTextEl = document.getElementById('adminFilterStatusText');
+      if (filterBanner && filterTextEl) {
+        if (hasActiveFilters) {
+          let summaryParts = [];
+          if (this.adminSearchQuery) summaryParts.push(`Search: "${this.adminSearchQuery}"`);
+          if (this.adminStatusFilter !== 'all') summaryParts.push(`Status: ${this.adminStatusFilter}`);
+          Object.entries(this.adminFilters).forEach(([k, v]) => {
+            if (v) summaryParts.push(`${k}: ${v}`);
+          });
+          filterTextEl.innerHTML = `<strong>🔍 Active Filters (${this.currentFilteredRecordIds.length} donors found):</strong> ${summaryParts.join(' | ')}`;
+          filterBanner.classList.remove('hidden');
+        } else {
+          filterBanner.classList.add('hidden');
+        }
+      }
 
       // 1. Build Header
       let headHtml = `
@@ -240,6 +279,9 @@ class AdminApp {
 
       this.selectedRecordIds.clear();
       this.updateSelectedCount();
+
+      // Automatically refresh Analytics Overview Stats
+      this.loadAnalytics();
 
       // 2. Build Table Rows
       if (records.length === 0) {
@@ -395,7 +437,7 @@ class AdminApp {
       const data = await res.json();
 
       if (data.success) {
-        this.showToast(data.message);
+        this.showToast(data.message || `Deleted ${ids.length} record(s).`);
         this.selectedRecordIds.clear();
         await this.loadSchema();
         await this.loadAdminTable();
@@ -405,6 +447,91 @@ class AdminApp {
     } catch (err) {
       alert('Error performing bulk delete.');
     }
+  }
+
+  async confirmDeleteFiltered() {
+    const count = this.currentFilteredRecordIds.length;
+    if (count === 0) return;
+
+    if (!confirm(`⚠️ CRITICAL WARNING:\n\nAre you sure you want to delete ALL ${count} donor record(s) matching your current search & condition filters?\n\nThis action will permanently delete ${count} records from the database and cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/records/delete-filtered', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: this.currentFilteredRecordIds })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        this.showToast(data.message || `Deleted ${count} filtered record(s).`);
+        this.resetAdminFilters();
+      } else {
+        alert(data.error || 'Failed to delete filtered records.');
+      }
+    } catch (err) {
+      alert('Error performing delete filtered records.');
+    }
+  }
+
+  renderAdminFilterDropdowns() {
+    const container = document.getElementById('adminFiltersContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+    const filterableOpts = this.schema.filterableOptions || {};
+
+    const keyFields = ['Zone', 'Forane', 'Blood Group'];
+
+    keyFields.forEach(field => {
+      const matchingKey = Object.keys(filterableOpts).find(k => k.toLowerCase().trim() === field.toLowerCase().trim());
+      const opts = matchingKey ? filterableOpts[matchingKey] : [];
+
+      if (opts && opts.length > 0) {
+        const select = document.createElement('select');
+        select.className = 'filter-select';
+        select.style.minWidth = '140px';
+        select.innerHTML = `<option value="">All ${field}s</option>`;
+        
+        opts.forEach(optVal => {
+          if (optVal) {
+            select.innerHTML += `<option value="${this.escapeHtml(optVal)}">${this.escapeHtml(optVal)}</option>`;
+          }
+        });
+
+        select.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val) {
+            this.adminFilters[field] = val;
+          } else {
+            delete this.adminFilters[field];
+          }
+          this.adminCurrentPage = 1;
+          this.loadAdminTable();
+        });
+
+        container.appendChild(select);
+      }
+    });
+  }
+
+  resetAdminFilters() {
+    this.adminSearchQuery = '';
+    this.adminStatusFilter = 'all';
+    this.adminFilters = {};
+    this.adminCurrentPage = 1;
+
+    const searchInput = document.getElementById('adminSearchInput');
+    const statusSelect = document.getElementById('adminStatusFilter');
+    if (searchInput) searchInput.value = '';
+    if (statusSelect) statusSelect.value = 'all';
+
+    this.renderAdminFilterDropdowns();
+    this.loadSchema();
+    this.loadAdminTable();
   }
 
   filterAdminTable() {

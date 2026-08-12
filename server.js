@@ -846,13 +846,34 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       records = records.filter(r => !r.isActive);
     }
 
+    const filtersParam = req.query.filters;
+    let filters = {};
+    if (filtersParam) {
+      try {
+        filters = JSON.parse(filtersParam);
+      } catch (e) {}
+    }
+
+    if (Object.keys(filters).length > 0) {
+      records = records.filter(r => {
+        return Object.entries(filters).every(([col, targetVal]) => {
+          if (!targetVal) return true;
+          const matchingKey = Object.keys(r.data).find(k => k.toLowerCase().trim() === col.toLowerCase().trim());
+          if (!matchingKey) return true;
+          return (r.data[matchingKey] || '').toString().toLowerCase().trim() === targetVal.toString().toLowerCase().trim();
+        });
+      });
+    }
+
     const totalRecords = records.length;
+    const allFilteredIds = records.map(r => r.id);
     const offset = (page - 1) * limit;
     const paginatedRecords = records.slice(offset, offset + limit);
 
     return res.json({
       success: true,
       records: paginatedRecords,
+      allFilteredIds,
       pagination: {
         page,
         limit,
@@ -1080,34 +1101,57 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// BULK DELETE
+// BULK DELETE Selected Records
 app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
-    if (!ids || !Array.isArray(ids) || ids.length === 0) {
-      return res.status(400).json({ success: false, error: 'Array of record IDs is required for bulk deletion.' });
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'No record IDs provided for bulk deletion.' });
     }
 
-    const numericIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-    if (numericIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid numeric record IDs provided.' });
+    const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
     }
 
-    const deleteRes = await pool.query(
-      'DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id',
-      [numericIds]
-    );
-
+    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id', [validIds]);
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      count: deleteRes.rows.length,
-      message: `Successfully deleted ${deleteRes.rows.length} selected record(s)!`
+      message: `Successfully deleted ${deleteRes.rowCount} record(s).`,
+      deletedCount: deleteRes.rowCount
     });
   } catch (err) {
     console.error('Bulk delete error:', err);
-    return res.status(500).json({ success: false, error: 'Failed to perform bulk deletion.' });
+    return res.status(500).json({ success: false, error: 'Failed to perform bulk delete.' });
+  }
+});
+
+// DELETE ALL FILTERED Records (Based on Active Search & Pre-existing Filters)
+app.post('/api/admin/records/delete-filtered', requireAdmin, async (req, res) => {
+  try {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'No matching filtered records found to delete.' });
+    }
+
+    const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+    if (validIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
+    }
+
+    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id', [validIds]);
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: `Successfully deleted all ${deleteRes.rowCount} filtered record(s).`,
+      deletedCount: deleteRes.rowCount
+    });
+  } catch (err) {
+    console.error('Delete filtered records error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to delete filtered records.' });
   }
 });
 
