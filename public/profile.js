@@ -559,7 +559,6 @@ class ProfileApp {
     }
 
     // Availability Status Toggle Switch State
-    const isAvailable = user.isAvailable !== false;
     const availCheckbox = document.getElementById('availabilityToggleCheckbox');
     const availLabel = document.getElementById('availabilityStatusLabel');
 
