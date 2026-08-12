@@ -784,7 +784,7 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const limit = (req.query.limit === 'all' || !req.query.limit) ? 100000 : Math.min(100000, Math.max(1, parseInt(req.query.limit, 10) || 100000));
     const q = req.query.q ? req.query.q.trim() : '';
     const statusFilter = req.query.statusFilter || 'all';
 

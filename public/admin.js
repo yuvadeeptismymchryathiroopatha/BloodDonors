@@ -217,8 +217,8 @@ class AdminApp {
 
     try {
       const queryParams = new URLSearchParams({
-        page: this.adminCurrentPage,
-        limit: 15,
+        page: 1,
+        limit: 'all',
         q: this.adminSearchQuery,
         statusFilter: this.adminStatusFilter
       });
@@ -306,7 +306,7 @@ class AdminApp {
 
         let rowHtml = `
           <td><input type="checkbox" class="row-checkbox" value="${row.id}" onchange="adminApp.toggleRowSelect(${row.id}, this.checked)"></td>
-          <td>${(this.adminCurrentPage - 1) * 15 + idx + 1}</td>
+          <td>${idx + 1}</td>
           <td><span style="${statusStyle}">${this.escapeHtml(row.statusBadge || 'Active')}</span></td>
         `;
 
@@ -331,9 +331,9 @@ class AdminApp {
       });
 
       const pag = data.pagination;
-      if (indicator) indicator.textContent = `Page ${pag.page} of ${pag.totalPages} (${pag.totalRecords} records)`;
-      if (prevBtn) prevBtn.disabled = pag.page <= 1;
-      if (nextBtn) nextBtn.disabled = pag.page >= pag.totalPages;
+      if (indicator) indicator.textContent = `Displaying all ${pag.totalRecords} donor records on a single page`;
+      if (prevBtn) prevBtn.style.display = 'none';
+      if (nextBtn) nextBtn.style.display = 'none';
 
     } catch (err) {
       console.error('Failed to load admin table:', err);
