@@ -1,4 +1,4 @@
-# Yuva Blood Forum by YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANASSERY
+# Yuva Blood Forum by YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANACHERRY
 
 An ultra-lightweight, high-performance blood donor and data search portal powered by Node.js, Express, and PostgreSQL (Neon DB).
 
@@ -68,4 +68,4 @@ An ultra-lightweight, high-performance blood donor and data search portal powere
 
 ## License & Attribution
 
-Developed by **ÉclatTech Technologies** for **YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANASSERY**.
+Developed by **ÉclatTech Technologies** for **YUVADEEPTI SMYM ARCHEPARCHY OF CHANGANACHERRY**.
