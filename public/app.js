@@ -22,7 +22,7 @@ class BloodDonorApp {
       'kottayam': ['Kottayam', 'Kudamaloor', 'Athirampuzha', 'Manimala', 'Nedumkunnam'],
       'changanacherry': ['Changanacherry', 'Thuruthy', 'Thrickodithanam', 'Thrikodithanam', 'Kurumpanadom'],
       'alappuzha': ['Alappuzha', 'Muhamma'],
-      'kuttanad': ['Edathua', 'Pulinkunnoo', 'Champakulam'],
+      'kuttanad': ['Edathua', 'Pulincunnoo', 'Champakulam'],
       'kollam': ['Kollam-Ayoor'],
       'trivandrum': ['Trivandrum', 'Amboori'],
       'chenganoor': ['Chenganoor']
@@ -152,7 +152,7 @@ class BloodDonorApp {
     const defaultForanes = [
       'Kottayam', 'Athirampuzha', 'Kudamaloor', 'Muhamma', 'Manimala', 
       'Nedumkunnam', 'Kurumpanadom', 'Thrickodithanam', 'Thuruthy', 'Changanacherry', 
-      'Edathua', 'Pulinkunnoo', 'Champakulam', 'Chenganoor', 'Alappuzha', 
+      'Edathua', 'Pulincunnoo', 'Champakulam', 'Chenganoor', 'Alappuzha', 
       'Kollam-Ayoor', 'Trivandrum', 'Amboori'
     ];
     const uploadedForanes = filterableOpts[foronaKey] || this.extractOptionsByRegex(/forona|forane/i);
@@ -185,7 +185,7 @@ class BloodDonorApp {
     const allForanes = [
       'Kottayam', 'Athirampuzha', 'Kudamaloor', 'Muhamma', 'Manimala', 
       'Nedumkunnam', 'Kurumpanadom', 'Thrickodithanam', 'Thuruthy', 'Changanacherry', 
-      'Edathua', 'Pulinkunnoo', 'Champakulam', 'Chenganoor', 'Alappuzha', 
+      'Edathua', 'Pulincunnoo', 'Champakulam', 'Chenganoor', 'Alappuzha', 
       'Kollam-Ayoor', 'Trivandrum', 'Amboori'
     ];
 

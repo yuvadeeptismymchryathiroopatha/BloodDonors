@@ -140,7 +140,7 @@ function getZoneFromForane(forane) {
   if (['kottayam', 'kudamaloor', 'athirampuzha', 'manimala', 'nedumkunnam'].includes(f)) return 'Kottayam Zone';
   if (['changanacherry', 'thuruthy', 'thrickodithanam', 'thrikodithanam', 'kurumpanadom'].includes(f)) return 'Changanacherry Zone';
   if (['alappuzha', 'muhamma'].includes(f)) return 'Alappuzha Zone';
-  if (['edathua', 'pulinkunnoo', 'champakulam'].includes(f)) return 'Kuttanad Zone';
+  if (['edathua', 'pulincunnoo', 'pulinkunnoo', 'champakulam'].includes(f)) return 'Kuttanad Zone';
   if (['kollam-ayoor', 'kollam', 'ayoor'].includes(f)) return 'Kollam-ayoor Zone';
   if (['trivandrum', 'amboori'].includes(f)) return 'Trivandrum Zone';
   if (['chenganoor'].includes(f)) return 'Chenganoor Zone';
