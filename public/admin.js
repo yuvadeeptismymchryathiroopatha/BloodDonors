@@ -316,15 +316,25 @@ class AdminApp {
           rowHtml += `<td>${this.escapeHtml(formattedVal)}</td>`;
         });
 
-        rowHtml += `
-          <td style="text-align:right;">
-            <div class="action-btns" style="justify-content:flex-end;">
-              <button class="btn-icon btn-icon-donate" title="Mark Blood Donation Completed" onclick="adminApp.markRecordDonated(${row.id})">🩸 Donated</button>
-              <button class="btn-icon" title="Edit Record" onclick="adminApp.openEditRecordModal(${row.id})">✏️ Edit</button>
-              <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="adminApp.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
-            </div>
-          </td>
-        `;
+        if (row.isDeleted) {
+          rowHtml += `
+            <td style="text-align:right;">
+              <div class="action-btns" style="justify-content:flex-end;">
+                <button class="btn-icon btn-icon-donate" title="Restore Soft-Deleted Record" onclick="adminApp.restoreRecord(${row.id})">♻️ Restore</button>
+              </div>
+            </td>
+          `;
+        } else {
+          rowHtml += `
+            <td style="text-align:right;">
+              <div class="action-btns" style="justify-content:flex-end;">
+                <button class="btn-icon btn-icon-donate" title="Mark Blood Donation Completed" onclick="adminApp.markRecordDonated(${row.id})">🩸 Donated</button>
+                <button class="btn-icon" title="Edit Record" onclick="adminApp.openEditRecordModal(${row.id})">✏️ Edit</button>
+                <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="adminApp.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
+              </div>
+            </td>
+          `;
+        }
 
         tr.innerHTML = rowHtml;
         tableBody.appendChild(tr);
@@ -422,11 +432,32 @@ class AdminApp {
     }
   }
 
+  async restoreRecord(id) {
+    try {
+      const res = await fetch(`/api/admin/records/${id}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        this.showToast(data.message || `Record #${id} restored successfully!`);
+        await this.loadSchema();
+        await this.loadAdminTable();
+      } else {
+        alert(data.error || 'Failed to restore record.');
+      }
+    } catch (err) {
+      alert('Error restoring record.');
+    }
+  }
+
   async confirmBulkDelete() {
     const ids = Array.from(this.selectedRecordIds);
     if (ids.length === 0) return;
 
-    if (!confirm(`Are you sure you want to delete ${ids.length} selected record(s)? This action cannot be undone.`)) {
+    if (!confirm(`Are you sure you want to soft-delete ${ids.length} selected record(s)? They will be moved to Trash and automatically purged after 90 days.`)) {
       return;
     }
 

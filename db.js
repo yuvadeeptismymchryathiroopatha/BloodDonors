@@ -72,6 +72,8 @@ async function initDb() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token_expires TIMESTAMP;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT true;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
+      ALTER TABLE data_records ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;
     `);
 
     // Create data_records table

@@ -69,7 +69,7 @@ function requireUser(req, res, next) {
 }
 
 async function refreshSchemaMetadata(clientOrPool = pool) {
-  const allRecordsRes = await clientOrPool.query('SELECT data FROM data_records');
+  const allRecordsRes = await clientOrPool.query('SELECT data FROM data_records WHERE deleted_at IS NULL');
   if (allRecordsRes.rows.length === 0) {
     await clientOrPool.query('DELETE FROM data_schema');
     return { columns: [], filterableOptions: {}, totalRecords: 0 };
@@ -788,7 +788,14 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     const q = req.query.q ? req.query.q.trim() : '';
     const statusFilter = req.query.statusFilter || 'all';
 
-    const allRes = await pool.query('SELECT id, data, created_at, search_text FROM data_records ORDER BY id DESC');
+    let sqlQuery = 'SELECT id, data, created_at, search_text, deleted_at FROM data_records';
+    if (statusFilter === 'trash') {
+      sqlQuery += ' WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC';
+    } else {
+      sqlQuery += ' WHERE deleted_at IS NULL ORDER BY id DESC';
+    }
+
+    const allRes = await pool.query(sqlQuery);
     const now = new Date();
 
     let records = allRes.rows.map(row => {
@@ -818,7 +825,13 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       let status = 'Active';
       let statusBadge = '🟢 Active';
 
-      if (!isAgeEligible) {
+      if (row.deleted_at) {
+        const delDate = new Date(row.deleted_at);
+        const daysAgo = Math.floor((now - delDate) / (1000 * 60 * 60 * 24));
+        const daysRemaining = Math.max(0, 90 - daysAgo);
+        status = 'Trash';
+        statusBadge = `🗑️ Soft Deleted (${daysRemaining} Days Until Auto-Purge)`;
+      } else if (!isAgeEligible) {
         status = 'Non-Active';
         statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
       } else if (isCoolingPeriod) {
@@ -831,7 +844,9 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
         data: rec,
         search_text: row.search_text,
         created_at: row.created_at,
+        deleted_at: row.deleted_at,
         isActive: status === 'Active',
+        isDeleted: !!row.deleted_at,
         statusBadge
       };
     });
@@ -939,10 +954,12 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
 // GET ADMIN ANALYTICS
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   try {
-    const allRes = await pool.query('SELECT id, data FROM data_records');
+    const allRes = await pool.query('SELECT id, data FROM data_records WHERE deleted_at IS NULL');
+    const trashRes = await pool.query('SELECT COUNT(*) FROM data_records WHERE deleted_at IS NOT NULL');
     const records = allRes.rows.map(r => r.data);
 
     const totalRecords = records.length;
+    const trashCount = parseInt(trashRes.rows[0].count, 10) || 0;
     const byZone = {};
     const byForona = {};
     const byBloodGroup = {};
@@ -1075,7 +1092,7 @@ app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE Single Record
+// DELETE Single Record (SOFT DELETE)
 app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   try {
     const recordId = parseInt(req.params.id, 10);
@@ -1083,16 +1100,20 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid record ID.' });
     }
 
-    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = $1 RETURNING id', [recordId]);
+    const deleteRes = await pool.query(
+      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id',
+      [recordId]
+    );
+
     if (deleteRes.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Record not found.' });
+      return res.status(404).json({ success: false, error: 'Record not found or already deleted.' });
     }
 
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      message: 'Record deleted successfully!',
+      message: 'Record soft-deleted successfully (Will be permanently removed after 90 days).',
       id: recordId
     });
   } catch (err) {
@@ -1101,7 +1122,37 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   }
 });
 
-// BULK DELETE Selected Records
+// RESTORE Soft-Deleted Record
+app.post('/api/admin/records/:id/restore', requireAdmin, async (req, res) => {
+  try {
+    const recordId = parseInt(req.params.id, 10);
+    if (isNaN(recordId)) {
+      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
+    }
+
+    const restoreRes = await pool.query(
+      'UPDATE data_records SET deleted_at = NULL WHERE id = $1 RETURNING id',
+      [recordId]
+    );
+
+    if (restoreRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Record not found in trash.' });
+    }
+
+    await refreshSchemaMetadata();
+
+    return res.json({
+      success: true,
+      message: `Record #${recordId} restored successfully!`,
+      id: recordId
+    });
+  } catch (err) {
+    console.error('Restore record error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to restore record.' });
+  }
+});
+
+// BULK SOFT-DELETE Selected Records
 app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -1114,12 +1165,15 @@ app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
     }
 
-    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id', [validIds]);
+    const deleteRes = await pool.query(
+      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND deleted_at IS NULL RETURNING id',
+      [validIds]
+    );
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      message: `Successfully deleted ${deleteRes.rowCount} record(s).`,
+      message: `Successfully soft-deleted ${deleteRes.rowCount} record(s) (Will auto-purge in 90 days).`,
       deletedCount: deleteRes.rowCount
     });
   } catch (err) {
@@ -1128,7 +1182,7 @@ app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   }
 });
 
-// DELETE ALL FILTERED Records (Based on Active Search & Pre-existing Filters)
+// SOFT-DELETE ALL FILTERED Records (Based on Active Search & Pre-existing Filters)
 app.post('/api/admin/records/delete-filtered', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -1141,12 +1195,15 @@ app.post('/api/admin/records/delete-filtered', requireAdmin, async (req, res) =>
       return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
     }
 
-    const deleteRes = await pool.query('DELETE FROM data_records WHERE id = ANY($1::int[]) RETURNING id', [validIds]);
+    const deleteRes = await pool.query(
+      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND deleted_at IS NULL RETURNING id',
+      [validIds]
+    );
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      message: `Successfully deleted all ${deleteRes.rowCount} filtered record(s).`,
+      message: `Successfully soft-deleted all ${deleteRes.rowCount} filtered record(s) (Will auto-purge in 90 days).`,
       deletedCount: deleteRes.rowCount
     });
   } catch (err) {
@@ -1324,7 +1381,7 @@ app.get('/api/search', async (req, res) => {
     const schemaRes = await pool.query('SELECT columns FROM data_schema ORDER BY id DESC LIMIT 1');
     const existingColumns = (schemaRes.rows.length > 0 && schemaRes.rows[0].columns) ? schemaRes.rows[0].columns : [];
 
-    const whereConditions = [];
+    const whereConditions = ['deleted_at IS NULL'];
     const values = [];
     let paramIndex = 1;
 
@@ -1471,11 +1528,30 @@ function getMatchingColumnKeys(filterName, columns) {
   return [filterName];
 }
 
+async function purgeOldSoftDeletedRecords() {
+  try {
+    const drRes = await pool.query(
+      `DELETE FROM data_records WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '90 days'`
+    );
+    const uRes = await pool.query(
+      `DELETE FROM users WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '90 days'`
+    );
+    if (drRes.rowCount > 0 || uRes.rowCount > 0) {
+      console.log(`🧹 Auto-purged ${drRes.rowCount} soft-deleted data records and ${uRes.rowCount} users older than 90 days.`);
+      await refreshSchemaMetadata();
+    }
+  } catch (err) {
+    console.error('Error auto-purging 90-day soft deleted records:', err);
+  }
+}
+
 module.exports = app;
 
 if (require.main === module) {
   initDb()
     .then(() => {
+      purgeOldSoftDeletedRecords();
+      setInterval(purgeOldSoftDeletedRecords, 24 * 60 * 60 * 1000);
       app.listen(PORT, () => {
         console.log(`Server running locally at http://localhost:${PORT}`);
       });
