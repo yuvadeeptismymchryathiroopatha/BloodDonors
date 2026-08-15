@@ -433,6 +433,54 @@
     </div>
   </footer>
 
+  <!-- DONATION HISTORY POP-UP MODAL (Asked during Registration) -->
+  <div id="donationQuestionModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span class="modal-title-icon">🩸</span>
+          <h3>Blood Donation History</h3>
+        </div>
+        <button type="button" class="modal-close" onclick="profileApp.closeDonationQuestionModal()">&times;</button>
+      </div>
+      <div class="modal-body" style="text-align: center; padding: 1.5rem 1.25rem;">
+        <p style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.4rem;">
+          Have you donated blood before?
+        </p>
+        <p class="form-desc" style="margin-bottom: 1.25rem; font-size: 0.88rem;">
+          Please let us know your donation history to accurately calculate your donation eligibility.
+        </p>
+
+        <div class="donation-choice-buttons" style="display: flex; gap: 1rem; justify-content: center; margin-bottom: 1.25rem;">
+          <button type="button" class="choice-btn" id="btnDonatedYes" onclick="profileApp.selectDonatedBefore(true)">
+            <span>✅</span> Yes, I have
+          </button>
+          <button type="button" class="choice-btn" id="btnDonatedNo" onclick="profileApp.selectDonatedBefore(false)">
+            <span>❌</span> No, I haven't
+          </button>
+        </div>
+
+        <!-- DATE PICKER CONTAINER (Displayed if YES) -->
+        <div id="donationDateContainer" class="hidden" style="text-align: left; background: var(--bg-subtle); padding: 1.15rem; border-radius: var(--radius-md); border: 1px solid var(--border-color); margin-bottom: 1rem;">
+          <div class="form-group" style="margin-bottom: 0.35rem;">
+            <label for="popDonationDate" style="font-weight: 600;">Last Blood Donation Date <span class="required">*</span></label>
+            <input type="date" id="popDonationDate" style="width: 100%;">
+          </div>
+          <small class="form-desc" style="display: block; font-size: 0.8rem;">Select the date when you last donated blood.</small>
+          <div id="popDateError" class="alert alert-danger hidden" style="margin-top: 0.75rem; font-size: 0.85rem;"></div>
+        </div>
+
+        <div id="modalRegError" class="alert alert-danger hidden" style="margin-top: 1rem; text-align: left;"></div>
+      </div>
+      <div class="modal-footer" style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+        <button type="button" class="btn btn-outline" onclick="profileApp.closeDonationQuestionModal()">Cancel</button>
+        <button type="button" id="popSubmitRegBtn" class="btn btn-primary" onclick="profileApp.submitRegistrationFromModal()" disabled style="opacity: 0.6;">
+          Complete Registration
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script src="theme.js"></script>
   <script src="profile.js"></script>
 </body>

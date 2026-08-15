@@ -908,6 +908,41 @@ body {
   gap: 0.5rem;
 }
 
+.choice-btn {
+  flex: 1;
+  padding: 0.85rem 1rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border: 2px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+  color: var(--text-main);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.choice-btn:hover {
+  border-color: var(--primary);
+  background: var(--bg-subtle);
+}
+
+.choice-btn.selected-yes {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.choice-btn.selected-no {
+  border-color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  color: #ef4444;
+}
+
+
 /* —— Profile / Auth —— */
 .profile-page .main-content {
   padding: 2.5rem 0;

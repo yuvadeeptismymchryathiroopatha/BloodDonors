@@ -267,16 +267,144 @@ class ProfileApp {
     const zone = this.getZoneFromForane(forona);
 
     errorEl.classList.add('hidden');
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Registering...';
+
+    // Store pending registration data & open pop-up modal to ask about donation history
+    this.pendingRegistrationData = {
+      name, email, password, phone: cleanPhone, bloodGroup, zone, forona, unit, dob
+    };
+
+    this.openDonationQuestionModal();
+  }
+
+  openDonationQuestionModal() {
+    this.hasDonatedChoice = null;
+    const modal = document.getElementById('donationQuestionModal');
+    const btnYes = document.getElementById('btnDonatedYes');
+    const btnNo = document.getElementById('btnDonatedNo');
+    const dateContainer = document.getElementById('donationDateContainer');
+    const popDateInput = document.getElementById('popDonationDate');
+    const popDateError = document.getElementById('popDateError');
+    const modalRegError = document.getElementById('modalRegError');
+    const submitBtn = document.getElementById('popSubmitRegBtn');
+
+    if (btnYes) btnYes.className = 'choice-btn';
+    if (btnNo) btnNo.className = 'choice-btn';
+    if (dateContainer) dateContainer.classList.add('hidden');
+    if (popDateInput) {
+      popDateInput.value = '';
+      popDateInput.max = new Date().toISOString().split('T')[0];
+    }
+    if (popDateError) popDateError.classList.add('hidden');
+    if (modalRegError) modalRegError.classList.add('hidden');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = '0.6';
+      submitBtn.textContent = 'Complete Registration';
+    }
+
+    if (modal) modal.classList.remove('hidden');
+  }
+
+  closeDonationQuestionModal() {
+    const modal = document.getElementById('donationQuestionModal');
+    if (modal) modal.classList.add('hidden');
+    const regSubmitBtn = document.getElementById('regSubmitBtn');
+    if (regSubmitBtn) {
+      regSubmitBtn.disabled = false;
+      regSubmitBtn.textContent = 'Complete Registration';
+    }
+  }
+
+  selectDonatedBefore(hasDonated) {
+    this.hasDonatedChoice = hasDonated;
+    const btnYes = document.getElementById('btnDonatedYes');
+    const btnNo = document.getElementById('btnDonatedNo');
+    const dateContainer = document.getElementById('donationDateContainer');
+    const submitBtn = document.getElementById('popSubmitRegBtn');
+    const popDateError = document.getElementById('popDateError');
+
+    if (popDateError) popDateError.classList.add('hidden');
+
+    if (hasDonated) {
+      if (btnYes) btnYes.className = 'choice-btn selected-yes';
+      if (btnNo) btnNo.className = 'choice-btn';
+      if (dateContainer) dateContainer.classList.remove('hidden');
+      const popDateInput = document.getElementById('popDonationDate');
+      if (popDateInput) popDateInput.focus();
+    } else {
+      if (btnYes) btnYes.className = 'choice-btn';
+      if (btnNo) btnNo.className = 'choice-btn selected-no';
+      if (dateContainer) dateContainer.classList.add('hidden');
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.style.opacity = '1';
+    }
+  }
+
+  async submitRegistrationFromModal() {
+    if (!this.pendingRegistrationData) {
+      alert('Registration session expired. Please fill out the registration form again.');
+      this.closeDonationQuestionModal();
+      return;
+    }
+
+    const popDateError = document.getElementById('popDateError');
+    const modalRegError = document.getElementById('modalRegError');
+    const submitBtn = document.getElementById('popSubmitRegBtn');
+
+    if (popDateError) popDateError.classList.add('hidden');
+    if (modalRegError) modalRegError.classList.add('hidden');
+
+    let lastDonationDate = null;
+
+    if (this.hasDonatedChoice === true) {
+      const popDateInput = document.getElementById('popDonationDate');
+      const dateVal = popDateInput ? popDateInput.value : '';
+
+      if (!dateVal) {
+        if (popDateError) {
+          popDateError.textContent = 'Please select your last blood donation date.';
+          popDateError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      const dDate = new Date(dateVal);
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (dDate > today) {
+        if (popDateError) {
+          popDateError.textContent = 'Last donation date cannot be in the future.';
+          popDateError.classList.remove('hidden');
+        }
+        return;
+      }
+
+      lastDonationDate = dateVal;
+    } else if (this.hasDonatedChoice === false) {
+      lastDonationDate = null;
+    } else {
+      alert('Please select whether you have donated blood before.');
+      return;
+    }
+
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Registering...';
+    }
+
+    const payload = {
+      ...this.pendingRegistrationData,
+      lastDonationDate
+    };
 
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name, email, password, phone: cleanPhone, bloodGroup, zone, forona, unit, dob
-        })
+        body: JSON.stringify(payload)
       });
 
       let data;
@@ -287,22 +415,32 @@ class ProfileApp {
       }
 
       if (res.ok && data && data.success) {
+        this.closeDonationQuestionModal();
+        this.pendingRegistrationData = null;
         this.currentUser = data.user;
         this.renderProfileView();
         this.showToast('Registration complete! Welcome!');
       } else {
-        errorEl.textContent = (data && data.error) ? data.error : `Registration failed (${res.status || 'Server error'}).`;
-        errorEl.classList.remove('hidden');
+        const errorMsg = (data && data.error) ? data.error : `Registration failed (${res.status || 'Server error'}).`;
+        if (modalRegError) {
+          modalRegError.textContent = errorMsg;
+          modalRegError.classList.remove('hidden');
+        }
       }
     } catch (err) {
       console.error('Registration fetch error:', err);
-      errorEl.textContent = 'Server connection error. Please check if server is running.';
-      errorEl.classList.remove('hidden');
+      if (modalRegError) {
+        modalRegError.textContent = 'Server connection error. Please check if server is running.';
+        modalRegError.classList.remove('hidden');
+      }
     } finally {
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Complete Registration';
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Complete Registration';
+      }
     }
   }
+
 
   async handleEmailLogin(e) {
     e.preventDefault();
