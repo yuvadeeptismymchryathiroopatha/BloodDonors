@@ -194,7 +194,12 @@ async function syncUserProfileToDataRecords(userId) {
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
 
-    const existing = user.email ? await DataRecord.findOne({ "data.Email": user.email.toLowerCase().trim() }) : null;
+    const existing = await DataRecord.findOne({
+      $or: [
+        { "data.Email": user.email ? user.email.toLowerCase().trim() : null },
+        { "data.Phone": user.phone ? user.phone.trim() : null }
+      ].filter(cond => Object.values(cond)[0] !== null)
+    });
 
     if (existing) {
       existing.data = formattedRecord;
@@ -324,6 +329,11 @@ app.post('/api/auth/register', async (req, res) => {
     const phoneNum = Number(cleanPhone);
     if (!/^[6-9]\d{9}$/.test(cleanPhone) || isNaN(phoneNum) || phoneNum < 6000000000 || phoneNum > 9999999999) {
       return res.status(400).json({ success: false, error: 'Phone number must be a valid 10-digit Indian number (between 6000000000 and 9999999999).' });
+    }
+
+    const existingPhoneUser = await User.findOne({ phone: cleanPhone, deleted_at: null });
+    if (existingPhoneUser) {
+      return res.status(400).json({ success: false, error: 'An account with this phone number is already registered. Each phone number can only be used once.' });
     }
 
     const computedZone = zone || getZoneFromForane(forona);
@@ -580,7 +590,14 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
     }
 
     if (name) user.name = name.trim();
-    if (phone) user.phone = phone.trim();
+    if (phone) {
+      const cleanPhone = phone.trim().replace(/[\s\-\(\)\+]/g, '').replace(/^91/, '');
+      const existingPhoneUser = await User.findOne({ phone: cleanPhone, _id: { $ne: userId }, deleted_at: null });
+      if (existingPhoneUser) {
+        return res.status(400).json({ success: false, error: 'This phone number is already registered by another account. Each phone number can only be used once.' });
+      }
+      user.phone = cleanPhone;
+    }
     if (bloodGroup) user.blood_group = bloodGroup.trim();
     if (zone) user.zone = zone.trim();
     if (forona) user.forona = forona.trim();
