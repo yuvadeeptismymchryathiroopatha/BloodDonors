@@ -2,13 +2,6 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-const mongoURI = process.env.MONGODB_URI;
-
-if (!mongoURI) {
-  console.error('MONGODB_URI is missing in environment variables');
-  process.exit(1);
-}
-
 // ----------------- SCHEMAS & MODELS -----------------
 
 // Admin Users Schema
@@ -58,24 +51,51 @@ const User = mongoose.models.User || mongoose.model('User', userSchema);
 const DataRecord = mongoose.models.DataRecord || mongoose.model('DataRecord', dataRecordSchema);
 const DataSchema = mongoose.models.DataSchema || mongoose.model('DataSchema', dataSchemaSchema);
 
+// Vercel / Serverless MongoDB Connection Caching
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
 async function initDb() {
-  if (mongoose.connection.readyState >= 1) {
-    return;
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
   }
 
-  const currentURI = process.env.MONGODB_URI || mongoURI;
-  if (!currentURI || currentURI.includes('<db_password>')) {
-    const err = new Error("MONGODB_URI in .env contains '<db_password>' placeholder. Please edit your .env file and replace <db_password> with your actual MongoDB cluster password.");
+  const mongoURI = process.env.MONGODB_URI;
+  if (!mongoURI) {
+    const err = new Error('MONGODB_URI environment variable is missing. Please add MONGODB_URI in your Vercel project Environment Variables.');
     console.error(err.message);
     throw err;
   }
 
-  try {
-    console.log('Connecting to MongoDB database...');
-    await mongoose.connect(currentURI);
-    console.log('MongoDB connection established successfully.');
+  if (mongoURI.includes('<db_password>')) {
+    const err = new Error("MONGODB_URI in environment variables contains '<db_password>' placeholder. Please replace <db_password> with your actual MongoDB password in Vercel settings.");
+    console.error(err.message);
+    throw err;
+  }
 
-    // Seed default admin if no admin exists
+  if (!cached.promise) {
+    const opts = {
+      bufferCommands: false
+    };
+
+    console.log('Connecting to MongoDB database...');
+    cached.promise = mongoose.connect(mongoURI, opts).then((mongooseInstance) => {
+      console.log('MongoDB connection established successfully.');
+      return mongooseInstance;
+    });
+  }
+
+  try {
+    cached.conn = await cached.promise;
+  } catch (e) {
+    cached.promise = null;
+    throw e;
+  }
+
+  // Seed default admin if no admin exists
+  try {
     const adminCount = await AdminUser.countDocuments({});
     if (adminCount === 0) {
       const defaultUsername = 'smymChry@blood';
@@ -88,13 +108,12 @@ async function initDb() {
         password_hash: hash
       });
       console.log(`Default admin user seeded: ${defaultUsername}`);
-    } else {
-      console.log('Admin user exists in database.');
     }
-  } catch (err) {
-    console.error('Error during MongoDB initialization:', err);
-    throw err;
+  } catch (seedErr) {
+    console.error('Admin seed check error:', seedErr);
   }
+
+  return cached.conn;
 }
 
 module.exports = {
