@@ -42,6 +42,13 @@ app.use(session({
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Public Auth Config Endpoint (Does not require DB)
+app.get('/api/auth/config', (req, res) => {
+  res.json({
+    googleClientId: GOOGLE_CLIENT_ID
+  });
+});
+
 let dbInitPromise = null;
 app.use(async (req, res, next) => {
   try {
@@ -57,7 +64,7 @@ app.use(async (req, res, next) => {
   } catch (err) {
     return res.status(500).json({
       success: false,
-      error: err.message || 'Database connection failed. Please check MONGODB_URI in your .env file.'
+      error: err.message || 'Database connection failed. Please check MONGODB_URI in your Vercel Environment Variables.'
     });
   }
 });
@@ -212,13 +219,6 @@ async function syncUserProfileToDataRecords(userId) {
 }
 
 // ----------------- GOOGLE & USER AUTH API ROUTES -----------------
-
-// Config Endpoint
-app.get('/api/auth/config', (req, res) => {
-  res.json({
-    googleClientId: GOOGLE_CLIENT_ID
-  });
-});
 
 // Google Sign-In Endpoint
 app.post('/api/auth/google', async (req, res) => {
