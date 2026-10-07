@@ -44,14 +44,22 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let dbInitPromise = null;
 app.use(async (req, res, next) => {
-  if (!dbInitPromise) {
-    dbInitPromise = initDb().catch(err => {
-      console.error('MongoDB init failed in request middleware:', err);
-      dbInitPromise = null;
+  try {
+    if (!dbInitPromise) {
+      dbInitPromise = initDb().catch(err => {
+        console.error('MongoDB connection error:', err.message);
+        dbInitPromise = null;
+        throw err;
+      });
+    }
+    await dbInitPromise;
+    next();
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'Database connection failed. Please check MONGODB_URI in your .env file.'
     });
   }
-  await dbInitPromise;
-  next();
 });
 
 function requireAdmin(req, res, next) {

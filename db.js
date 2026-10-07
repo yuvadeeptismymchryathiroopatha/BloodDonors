@@ -63,9 +63,16 @@ async function initDb() {
     return;
   }
 
+  const currentURI = process.env.MONGODB_URI || mongoURI;
+  if (!currentURI || currentURI.includes('<db_password>')) {
+    const err = new Error("MONGODB_URI in .env contains '<db_password>' placeholder. Please edit your .env file and replace <db_password> with your actual MongoDB cluster password.");
+    console.error(err.message);
+    throw err;
+  }
+
   try {
     console.log('Connecting to MongoDB database...');
-    await mongoose.connect(mongoURI);
+    await mongoose.connect(currentURI);
     console.log('MongoDB connection established successfully.');
 
     // Seed default admin if no admin exists
