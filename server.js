@@ -9,7 +9,7 @@ const os = require('os');
 const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
-const { pool, initDb } = require('./db');
+const { initDb, AdminUser, User, DataRecord, DataSchema } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -32,9 +32,9 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'blood_donor_portal_secret_2026',
   resave: false,
   saveUninitialized: false,
-  rolling: true, // Renews 1-year session cookie expiration on user activity
+  rolling: true,
   cookie: {
-    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 full year (365 days)
+    maxAge: 365 * 24 * 60 * 60 * 1000, // 1 year
     httpOnly: true,
     sameSite: 'lax'
   }
@@ -46,7 +46,7 @@ let dbInitPromise = null;
 app.use(async (req, res, next) => {
   if (!dbInitPromise) {
     dbInitPromise = initDb().catch(err => {
-      console.error('DB init failed in request middleware:', err);
+      console.error('MongoDB init failed in request middleware:', err);
       dbInitPromise = null;
     });
   }
@@ -68,17 +68,17 @@ function requireUser(req, res, next) {
   return res.status(401).json({ success: false, error: 'Unauthorized. Please sign in.' });
 }
 
-async function refreshSchemaMetadata(clientOrPool = pool) {
-  const allRecordsRes = await clientOrPool.query('SELECT data FROM data_records WHERE deleted_at IS NULL');
-  if (allRecordsRes.rows.length === 0) {
-    await clientOrPool.query('DELETE FROM data_schema');
+async function refreshSchemaMetadata() {
+  const allRecords = await DataRecord.find({ deleted_at: null });
+  if (allRecords.length === 0) {
+    await DataSchema.deleteMany({});
     return { columns: [], filterableOptions: {}, totalRecords: 0 };
   }
 
   const columnSet = new Set();
   const columnValueCounts = {};
 
-  allRecordsRes.rows.forEach(row => {
+  allRecords.forEach(row => {
     const data = row.data || {};
     Object.keys(data).forEach(col => {
       columnSet.add(col);
@@ -99,13 +99,15 @@ async function refreshSchemaMetadata(clientOrPool = pool) {
     }
   });
 
-  await clientOrPool.query('DELETE FROM data_schema');
-  await clientOrPool.query(
-    'INSERT INTO data_schema (columns, filterable_options, total_records) VALUES ($1, $2, $3)',
-    [JSON.stringify(columns), JSON.stringify(filterableOptions), allRecordsRes.rows.length]
-  );
+  await DataSchema.deleteMany({});
+  await DataSchema.create({
+    columns,
+    filterable_options: filterableOptions,
+    total_records: allRecords.length,
+    uploaded_at: new Date()
+  });
 
-  return { columns, filterableOptions, totalRecords: allRecordsRes.rows.length };
+  return { columns, filterableOptions, totalRecords: allRecords.length };
 }
 
 function calculateAgeFromDob(dobStr) {
@@ -150,11 +152,8 @@ function getZoneFromForane(forane) {
 // SYNC USER PROFILE TO PUBLIC DATA_RECORDS TABLE
 async function syncUserProfileToDataRecords(userId) {
   try {
-    const userRes = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
-    if (userRes.rows.length === 0) return;
-    const user = userRes.rows[0];
-
-    if (!user.name || !user.phone) return;
+    const user = await User.findById(userId);
+    if (!user || !user.name || !user.phone) return;
 
     let computedAge = user.age;
     if (user.dob) {
@@ -180,21 +179,22 @@ async function syncUserProfileToDataRecords(userId) {
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
 
-    const existingRes = await pool.query(
-      `SELECT id FROM data_records WHERE (data->>'Email') = $1 OR (data->>'Phone') = $2`,
-      [user.email, user.phone]
-    );
+    const existing = await DataRecord.findOne({
+      $or: [
+        { "data.Email": user.email },
+        { "data.Phone": user.phone }
+      ]
+    });
 
-    if (existingRes.rows.length > 0) {
-      await pool.query(
-        'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3',
-        [JSON.stringify(formattedRecord), searchText, existingRes.rows[0].id]
-      );
+    if (existing) {
+      existing.data = formattedRecord;
+      existing.search_text = searchText;
+      await existing.save();
     } else {
-      await pool.query(
-        'INSERT INTO data_records (data, search_text) VALUES ($1, $2)',
-        [JSON.stringify(formattedRecord), searchText]
-      );
+      await DataRecord.create({
+        data: formattedRecord,
+        search_text: searchText
+      });
     }
 
     await refreshSchemaMetadata();
@@ -244,34 +244,35 @@ app.post('/api/auth/google', async (req, res) => {
     }
 
     const googleId = payload.sub || `google-${Date.now()}`;
-    const email = payload.email;
+    const email = payload.email.toLowerCase().trim();
     const name = payload.name || 'Donor User';
     const picture = payload.picture || '';
 
-    // Check if user exists
-    let userRes = await pool.query('SELECT * FROM users WHERE google_id = $1 OR LOWER(email) = LOWER($2)', [googleId, email]);
-    let user;
+    let user = await User.findOne({
+      $or: [
+        { google_id: googleId },
+        { email: email }
+      ]
+    });
 
-    if (userRes.rows.length === 0) {
-      // Insert new Google User (default is_available = true)
-      const insertRes = await pool.query(
-        'INSERT INTO users (google_id, email, name, picture, is_available) VALUES ($1, $2, $3, $4, true) RETURNING *',
-        [googleId, email, name, picture]
-      );
-      user = insertRes.rows[0];
+    if (!user) {
+      user = await User.create({
+        google_id: googleId,
+        email: email,
+        name: name,
+        picture: picture,
+        is_available: true
+      });
     } else {
-      user = userRes.rows[0];
-      if (!user.google_id || !user.picture) {
-        const updateRes = await pool.query(
-          'UPDATE users SET google_id = $1, picture = COALESCE(picture, $2), name = COALESCE(name, $3) WHERE id = $4 RETURNING *',
-          [googleId, picture, name, user.id]
-        );
-        user = updateRes.rows[0];
-      }
+      let updated = false;
+      if (!user.google_id) { user.google_id = googleId; updated = true; }
+      if (!user.picture && picture) { user.picture = picture; updated = true; }
+      if (!user.name && name) { user.name = name; updated = true; }
+      if (updated) await user.save();
     }
 
     req.session.user = {
-      id: user.id,
+      id: user._id.toString(),
       googleId: user.google_id,
       email: user.email,
       name: user.name,
@@ -324,8 +325,8 @@ app.post('/api/auth/register', async (req, res) => {
 
     const computedZone = zone || getZoneFromForane(forona);
 
-    const existingRes = await pool.query('SELECT id FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
-    if (existingRes.rows.length > 0) {
+    const existingUser = await User.findOne({ email: email.trim().toLowerCase() });
+    if (existingUser) {
       return res.status(400).json({ success: false, error: 'An account with this email already exists. Please sign in.' });
     }
 
@@ -350,28 +351,23 @@ app.post('/api/auth/register', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const insertRes = await pool.query(
-      `INSERT INTO users (email, password_hash, name, phone, blood_group, zone, forona, unit, dob, age, last_donation_date, is_available) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true) RETURNING *`,
-      [
-        email.trim(),
-        passwordHash,
-        name.trim(),
-        cleanPhone,
-        bloodGroup ? bloodGroup.trim() : null,
-        computedZone ? computedZone.trim() : null,
-        forona ? forona.trim() : null,
-        unit ? unit.trim() : null,
-        dob ? dob : null,
-        computedAge,
-        lastDonationDate ? lastDonationDate : null
-      ]
-    );
-
-    const user = insertRes.rows[0];
+    const user = await User.create({
+      email: email.trim().toLowerCase(),
+      password_hash: passwordHash,
+      name: name.trim(),
+      phone: cleanPhone,
+      blood_group: bloodGroup ? bloodGroup.trim() : null,
+      zone: computedZone ? computedZone.trim() : null,
+      forona: forona ? forona.trim() : null,
+      unit: unit ? unit.trim() : null,
+      dob: dob ? new Date(dob) : null,
+      age: computedAge,
+      last_donation_date: lastDonationDate ? new Date(lastDonationDate) : null,
+      is_available: true
+    });
 
     req.session.user = {
-      id: user.id,
+      id: user._id.toString(),
       email: user.email,
       name: user.name,
       picture: user.picture,
@@ -386,7 +382,7 @@ app.post('/api/auth/register', async (req, res) => {
       isAvailable: user.is_available !== false
     };
 
-    await syncUserProfileToDataRecords(user.id);
+    await syncUserProfileToDataRecords(user._id);
 
     return res.json({
       success: true,
@@ -407,12 +403,11 @@ app.post('/api/auth/login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email and password are required.' });
     }
 
-    const userRes = await pool.query('SELECT * FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
-    if (userRes.rows.length === 0) {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
       return res.status(401).json({ success: false, error: 'Invalid email or password.' });
     }
 
-    const user = userRes.rows[0];
     if (!user.password_hash) {
       return res.status(400).json({ success: false, error: 'This account uses Google Sign-In. Please sign in with Google.' });
     }
@@ -423,7 +418,7 @@ app.post('/api/auth/login', async (req, res) => {
     }
 
     req.session.user = {
-      id: user.id,
+      id: user._id.toString(),
       googleId: user.google_id,
       email: user.email,
       name: user.name,
@@ -458,12 +453,10 @@ app.post('/api/auth/forgot-password/verify', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Email address is required.' });
     }
 
-    const userRes = await pool.query('SELECT id, email, phone, password_hash FROM users WHERE LOWER(email) = LOWER($1)', [email.trim()]);
-    if (userRes.rows.length === 0) {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
       return res.status(404).json({ success: false, error: 'No account found with this email address.' });
     }
-
-    const user = userRes.rows[0];
 
     if (!user.password_hash) {
       return res.status(400).json({ success: false, error: 'This account was created with Google Sign-In. Please sign in using Google.' });
@@ -478,12 +471,11 @@ app.post('/api/auth/forgot-password/verify', async (req, res) => {
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
-    await pool.query(
-      'UPDATE users SET reset_token = $1, reset_token_expires = $2 WHERE id = $3',
-      [resetCode, expiresAt, user.id]
-    );
+    user.reset_token = resetCode;
+    user.reset_token_expires = expiresAt;
+    await user.save();
 
     return res.json({
       success: true,
@@ -509,16 +501,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
       return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
     }
 
-    const userRes = await pool.query(
-      'SELECT id, reset_token, reset_token_expires FROM users WHERE LOWER(email) = LOWER($1)',
-      [email.trim()]
-    );
-
-    if (userRes.rows.length === 0) {
+    const user = await User.findOne({ email: email.trim().toLowerCase() });
+    if (!user) {
       return res.status(404).json({ success: false, error: 'User account not found.' });
     }
-
-    const user = userRes.rows[0];
 
     if (!user.reset_token || user.reset_token !== resetCode.trim()) {
       return res.status(400).json({ success: false, error: 'Invalid verification code.' });
@@ -531,10 +517,10 @@ app.post('/api/auth/reset-password', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(newPassword, salt);
 
-    await pool.query(
-      'UPDATE users SET password_hash = $1, reset_token = NULL, reset_token_expires = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-      [passwordHash, user.id]
-    );
+    user.password_hash = passwordHash;
+    user.reset_token = null;
+    user.reset_token_expires = null;
+    await user.save();
 
     return res.json({
       success: true,
@@ -585,37 +571,25 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       }
     }
 
-    const updateRes = await pool.query(
-      `UPDATE users SET 
-        name = COALESCE($1, name),
-        phone = COALESCE($2, phone),
-        blood_group = COALESCE($3, blood_group),
-        zone = COALESCE($4, zone),
-        forona = COALESCE($5, forona),
-        unit = COALESCE($6, unit),
-        dob = COALESCE($7, dob),
-        age = COALESCE($8, age),
-        last_donation_date = COALESCE($9, last_donation_date),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = $10 RETURNING *`,
-      [
-        name ? name.trim() : null,
-        phone ? phone.trim() : null,
-        bloodGroup ? bloodGroup.trim() : null,
-        zone ? zone.trim() : null,
-        forona ? forona.trim() : null,
-        unit ? unit.trim() : null,
-        dob ? dob : null,
-        computedAge,
-        lastDonationDate ? lastDonationDate : null,
-        userId
-      ]
-    );
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
 
-    const user = updateRes.rows[0];
+    if (name) user.name = name.trim();
+    if (phone) user.phone = phone.trim();
+    if (bloodGroup) user.blood_group = bloodGroup.trim();
+    if (zone) user.zone = zone.trim();
+    if (forona) user.forona = forona.trim();
+    if (unit) user.unit = unit.trim();
+    if (dob) user.dob = new Date(dob);
+    if (computedAge !== null) user.age = computedAge;
+    if (lastDonationDate) user.last_donation_date = new Date(lastDonationDate);
+
+    await user.save();
 
     req.session.user = {
-      id: user.id,
+      id: user._id.toString(),
       email: user.email,
       name: user.name,
       picture: user.picture,
@@ -630,7 +604,7 @@ app.put('/api/user/profile', requireUser, async (req, res) => {
       isAvailable: user.is_available !== false
     };
 
-    await syncUserProfileToDataRecords(user.id);
+    await syncUserProfileToDataRecords(user._id);
 
     return res.json({
       success: true,
@@ -650,19 +624,20 @@ app.put('/api/user/availability', requireUser, async (req, res) => {
     const { isAvailable } = req.body;
     const boolVal = isAvailable !== false;
 
-    const updateRes = await pool.query(
-      'UPDATE users SET is_available = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *',
-      [boolVal, userId]
-    );
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found.' });
+    }
 
-    const user = updateRes.rows[0];
+    user.is_available = boolVal;
+    await user.save();
 
     req.session.user = {
       ...req.session.user,
       isAvailable: user.is_available !== false
     };
 
-    await syncUserProfileToDataRecords(user.id);
+    await syncUserProfileToDataRecords(user._id);
 
     return res.json({
       success: true,
@@ -685,20 +660,18 @@ app.post('/api/admin/login', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Username and password are required.' });
     }
 
-    const userRes = await pool.query('SELECT * FROM admin_users WHERE LOWER(username) = LOWER($1)', [username.trim()]);
-    if (userRes.rows.length === 0) {
+    const adminUser = await AdminUser.findOne({ username: username.trim().toLowerCase() });
+    if (!adminUser) {
       return res.status(401).json({ success: false, error: 'Invalid username or password.' });
     }
 
-    const adminUser = userRes.rows[0];
     const isMatch = await bcrypt.compare(password, adminUser.password_hash);
-
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'Invalid username or password.' });
     }
 
     req.session.admin = {
-      id: adminUser.id,
+      id: adminUser._id.toString(),
       username: adminUser.username
     };
 
@@ -731,27 +704,23 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
     }
 
     const adminId = req.session.admin.id;
-    const userRes = await pool.query('SELECT * FROM admin_users WHERE id = $1', [adminId]);
-    if (userRes.rows.length === 0) {
+    const adminUser = await AdminUser.findById(adminId);
+    if (!adminUser) {
       return res.status(404).json({ success: false, error: 'Admin account not found.' });
     }
 
-    const adminUser = userRes.rows[0];
     const isMatch = await bcrypt.compare(currentPassword, adminUser.password_hash);
     if (!isMatch) {
       return res.status(401).json({ success: false, error: 'Current password is incorrect.' });
     }
 
-    let updatedUsername = adminUser.username;
-    let updatedPasswordHash = adminUser.password_hash;
-
     if (newUsername && newUsername.trim() !== '') {
-      const trimmedUser = newUsername.trim();
-      const existing = await pool.query('SELECT id FROM admin_users WHERE LOWER(username) = LOWER($1) AND id != $2', [trimmedUser, adminId]);
-      if (existing.rows.length > 0) {
+      const trimmedUser = newUsername.trim().toLowerCase();
+      const existing = await AdminUser.findOne({ username: trimmedUser, _id: { $ne: adminId } });
+      if (existing) {
         return res.status(400).json({ success: false, error: 'Username is already taken by another user.' });
       }
-      updatedUsername = trimmedUser;
+      adminUser.username = trimmedUser;
     }
 
     if (newPassword && newPassword.trim() !== '') {
@@ -759,20 +728,16 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
         return res.status(400).json({ success: false, error: 'New password must be at least 6 characters long.' });
       }
       const salt = await bcrypt.genSalt(10);
-      updatedPasswordHash = await bcrypt.hash(newPassword, salt);
+      adminUser.password_hash = await bcrypt.hash(newPassword, salt);
     }
 
-    await pool.query(
-      'UPDATE admin_users SET username = $1, password_hash = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $3',
-      [updatedUsername, updatedPasswordHash, adminId]
-    );
-
-    req.session.admin.username = updatedUsername;
+    await adminUser.save();
+    req.session.admin.username = adminUser.username;
 
     return res.json({
       success: true,
       message: 'Admin credentials updated successfully!',
-      username: updatedUsername
+      username: adminUser.username
     });
   } catch (err) {
     console.error('Credential change error:', err);
@@ -788,19 +753,20 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     const q = req.query.q ? req.query.q.trim() : '';
     const statusFilter = req.query.statusFilter || 'all';
 
-    let sqlQuery = 'SELECT id, data, created_at, search_text, deleted_at FROM data_records';
+    let filterQuery = {};
     if (statusFilter === 'trash') {
-      sqlQuery += ' WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC';
+      filterQuery.deleted_at = { $ne: null };
     } else {
-      sqlQuery += ' WHERE deleted_at IS NULL ORDER BY id DESC';
+      filterQuery.deleted_at = null;
     }
 
-    const allRes = await pool.query(sqlQuery);
+    const allRecordsDocs = await DataRecord.find(filterQuery).sort({ createdAt: -1 });
     const now = new Date();
 
-    let records = allRes.rows.map(row => {
-      const rec = row.data || {};
-      
+    let records = allRecordsDocs.map(doc => {
+      const rec = doc.data || {};
+      const id = doc._id.toString();
+
       const dobVal = rec['Date of Birth'] || rec['DOB'] || rec['dob'];
       if (dobVal) {
         const dynamicAge = calculateAgeFromDob(dobVal);
@@ -825,8 +791,8 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       let status = 'Active';
       let statusBadge = '🟢 Active';
 
-      if (row.deleted_at) {
-        const delDate = new Date(row.deleted_at);
+      if (doc.deleted_at) {
+        const delDate = new Date(doc.deleted_at);
         const daysAgo = Math.floor((now - delDate) / (1000 * 60 * 60 * 24));
         const daysRemaining = Math.max(0, 90 - daysAgo);
         status = 'Trash';
@@ -840,13 +806,13 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       }
 
       return {
-        id: row.id,
+        id: id,
         data: rec,
-        search_text: row.search_text,
-        created_at: row.created_at,
-        deleted_at: row.deleted_at,
+        search_text: doc.search_text,
+        created_at: doc.createdAt,
+        deleted_at: doc.deleted_at,
         isActive: status === 'Active',
-        isDeleted: !!row.deleted_at,
+        isDeleted: !!doc.deleted_at,
         statusBadge
       };
     });
@@ -905,11 +871,7 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
 // MARK DONATION COMPLETED
 app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) => {
   try {
-    const recordId = parseInt(req.params.id, 10);
-    if (isNaN(recordId)) {
-      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
-    }
-
+    const recordId = req.params.id;
     const donationDate = req.body.donationDate || new Date().toISOString().split('T')[0];
 
     if (donationDate) {
@@ -921,23 +883,20 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
       }
     }
 
-    const getRes = await pool.query('SELECT data FROM data_records WHERE id = $1', [recordId]);
-    if (getRes.rows.length === 0) {
+    const doc = await DataRecord.findById(recordId);
+    if (!doc) {
       return res.status(404).json({ success: false, error: 'Record not found.' });
     }
 
-    const currentData = getRes.rows[0].data || {};
+    const currentData = doc.data || {};
     currentData['Last Donation Date'] = donationDate;
     currentData['Availability'] = `Donated on ${donationDate} (3 Month Cooling Period)`;
 
     const searchTextParts = Object.values(currentData).map(v => (v || '').toString().trim()).filter(Boolean);
-    const searchText = searchTextParts.join(' | ');
+    doc.data = currentData;
+    doc.search_text = searchTextParts.join(' | ');
 
-    await pool.query(
-      'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3',
-      [JSON.stringify(currentData), searchText, recordId]
-    );
-
+    await doc.save();
     await refreshSchemaMetadata();
 
     return res.json({
@@ -954,12 +913,11 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
 // GET ADMIN ANALYTICS
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   try {
-    const allRes = await pool.query('SELECT id, data FROM data_records WHERE deleted_at IS NULL');
-    const trashRes = await pool.query('SELECT COUNT(*) FROM data_records WHERE deleted_at IS NOT NULL');
-    const records = allRes.rows.map(r => r.data);
+    const activeDocs = await DataRecord.find({ deleted_at: null });
+    const trashCount = await DataRecord.countDocuments({ deleted_at: { $ne: null } });
+    const records = activeDocs.map(r => r.data || {});
 
     const totalRecords = records.length;
-    const trashCount = parseInt(trashRes.rows[0].count, 10) || 0;
     const byZone = {};
     const byForona = {};
     const byBloodGroup = {};
@@ -1011,6 +969,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
     return res.json({
       success: true,
       totalRecords,
+      trashCount,
       eligibleCount,
       nonActiveCount,
       donatedRecentlyCount,
@@ -1036,17 +995,17 @@ app.post('/api/admin/records', requireAdmin, async (req, res) => {
     const searchTextParts = Object.values(data).map(v => (v || '').toString().trim()).filter(Boolean);
     const searchText = searchTextParts.join(' | ');
 
-    const insertRes = await pool.query(
-      'INSERT INTO data_records (data, search_text) VALUES ($1, $2) RETURNING id, data, created_at',
-      [JSON.stringify(data), searchText]
-    );
+    const newDoc = await DataRecord.create({
+      data: data,
+      search_text: searchText
+    });
 
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
       message: 'Record created successfully!',
-      record: insertRes.rows[0]
+      record: { id: newDoc._id.toString(), data: newDoc.data, created_at: newDoc.createdAt }
     });
   } catch (err) {
     console.error('Create record error:', err);
@@ -1057,12 +1016,9 @@ app.post('/api/admin/records', requireAdmin, async (req, res) => {
 // UPDATE Single Record
 app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
   try {
-    const recordId = parseInt(req.params.id, 10);
+    const recordId = req.params.id;
     const { data } = req.body;
 
-    if (isNaN(recordId)) {
-      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
-    }
     if (!data || typeof data !== 'object') {
       return res.status(400).json({ success: false, error: 'Valid record data is required.' });
     }
@@ -1070,12 +1026,13 @@ app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
     const searchTextParts = Object.values(data).map(v => (v || '').toString().trim()).filter(Boolean);
     const searchText = searchTextParts.join(' | ');
 
-    const updateRes = await pool.query(
-      'UPDATE data_records SET data = $1, search_text = $2 WHERE id = $3 RETURNING id, data, created_at',
-      [JSON.stringify(data), searchText, recordId]
+    const doc = await DataRecord.findByIdAndUpdate(
+      recordId,
+      { data, search_text: searchText },
+      { new: true }
     );
 
-    if (updateRes.rows.length === 0) {
+    if (!doc) {
       return res.status(404).json({ success: false, error: 'Record not found.' });
     }
 
@@ -1084,7 +1041,7 @@ app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
     return res.json({
       success: true,
       message: 'Record updated successfully!',
-      record: updateRes.rows[0]
+      record: { id: doc._id.toString(), data: doc.data, created_at: doc.createdAt }
     });
   } catch (err) {
     console.error('Update record error:', err);
@@ -1095,17 +1052,15 @@ app.put('/api/admin/records/:id', requireAdmin, async (req, res) => {
 // DELETE Single Record (SOFT DELETE)
 app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
   try {
-    const recordId = parseInt(req.params.id, 10);
-    if (isNaN(recordId)) {
-      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
-    }
+    const recordId = req.params.id;
 
-    const deleteRes = await pool.query(
-      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL RETURNING id',
-      [recordId]
+    const doc = await DataRecord.findOneAndUpdate(
+      { _id: recordId, deleted_at: null },
+      { deleted_at: new Date() },
+      { new: true }
     );
 
-    if (deleteRes.rows.length === 0) {
+    if (!doc) {
       return res.status(404).json({ success: false, error: 'Record not found or already deleted.' });
     }
 
@@ -1125,17 +1080,15 @@ app.delete('/api/admin/records/:id', requireAdmin, async (req, res) => {
 // RESTORE Soft-Deleted Record
 app.post('/api/admin/records/:id/restore', requireAdmin, async (req, res) => {
   try {
-    const recordId = parseInt(req.params.id, 10);
-    if (isNaN(recordId)) {
-      return res.status(400).json({ success: false, error: 'Invalid record ID.' });
-    }
+    const recordId = req.params.id;
 
-    const restoreRes = await pool.query(
-      'UPDATE data_records SET deleted_at = NULL WHERE id = $1 RETURNING id',
-      [recordId]
+    const doc = await DataRecord.findByIdAndUpdate(
+      recordId,
+      { deleted_at: null },
+      { new: true }
     );
 
-    if (restoreRes.rows.length === 0) {
+    if (!doc) {
       return res.status(404).json({ success: false, error: 'Record not found in trash.' });
     }
 
@@ -1160,21 +1113,16 @@ app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
       return res.status(400).json({ success: false, error: 'No record IDs provided for bulk deletion.' });
     }
 
-    const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-    if (validIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
-    }
-
-    const deleteRes = await pool.query(
-      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND deleted_at IS NULL RETURNING id',
-      [validIds]
+    const updateRes = await DataRecord.updateMany(
+      { _id: { $in: ids }, deleted_at: null },
+      { deleted_at: new Date() }
     );
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      message: `Successfully soft-deleted ${deleteRes.rowCount} record(s) (Will auto-purge in 90 days).`,
-      deletedCount: deleteRes.rowCount
+      message: `Successfully soft-deleted ${updateRes.modifiedCount} record(s) (Will auto-purge in 90 days).`,
+      deletedCount: updateRes.modifiedCount
     });
   } catch (err) {
     console.error('Bulk delete error:', err);
@@ -1182,7 +1130,7 @@ app.post('/api/admin/records/bulk-delete', requireAdmin, async (req, res) => {
   }
 });
 
-// SOFT-DELETE ALL FILTERED Records (Based on Active Search & Pre-existing Filters)
+// SOFT-DELETE ALL FILTERED Records
 app.post('/api/admin/records/delete-filtered', requireAdmin, async (req, res) => {
   try {
     const { ids } = req.body;
@@ -1190,21 +1138,16 @@ app.post('/api/admin/records/delete-filtered', requireAdmin, async (req, res) =>
       return res.status(400).json({ success: false, error: 'No matching filtered records found to delete.' });
     }
 
-    const validIds = ids.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
-    if (validIds.length === 0) {
-      return res.status(400).json({ success: false, error: 'Invalid record IDs provided.' });
-    }
-
-    const deleteRes = await pool.query(
-      'UPDATE data_records SET deleted_at = CURRENT_TIMESTAMP WHERE id = ANY($1::int[]) AND deleted_at IS NULL RETURNING id',
-      [validIds]
+    const updateRes = await DataRecord.updateMany(
+      { _id: { $in: ids }, deleted_at: null },
+      { deleted_at: new Date() }
     );
     await refreshSchemaMetadata();
 
     return res.json({
       success: true,
-      message: `Successfully soft-deleted all ${deleteRes.rowCount} filtered record(s) (Will auto-purge in 90 days).`,
-      deletedCount: deleteRes.rowCount
+      message: `Successfully soft-deleted all ${updateRes.modifiedCount} filtered record(s) (Will auto-purge in 90 days).`,
+      deletedCount: updateRes.modifiedCount
     });
   } catch (err) {
     console.error('Delete filtered records error:', err);
@@ -1275,24 +1218,17 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
         }
       });
 
-      const client = await pool.connect();
       try {
-        await client.query('BEGIN');
+        await DataRecord.deleteMany({});
+        await DataSchema.deleteMany({});
 
-        await client.query('DELETE FROM data_records');
-        await client.query('DELETE FROM data_schema');
-
-        const insertText = 'INSERT INTO data_records (data, search_text) VALUES ($1, $2)';
-        for (const record of results) {
-          await client.query(insertText, [JSON.stringify(record.data), record.search_text]);
-        }
-
-        await client.query(
-          'INSERT INTO data_schema (columns, filterable_options, total_records) VALUES ($1, $2, $3)',
-          [JSON.stringify(columns), JSON.stringify(filterableOptions), results.length]
-        );
-
-        await client.query('COMMIT');
+        await DataRecord.insertMany(results);
+        await DataSchema.create({
+          columns,
+          filterable_options: filterableOptions,
+          total_records: results.length,
+          uploaded_at: new Date()
+        });
 
         return res.json({
           success: true,
@@ -1302,11 +1238,8 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
           filterableOptions
         });
       } catch (dbErr) {
-        await client.query('ROLLBACK');
-        console.error('Database transaction error during CSV upload:', dbErr);
-        return res.status(500).json({ success: false, error: 'Database transaction failed during CSV import.' });
-      } finally {
-        client.release();
+        console.error('Database error during CSV upload:', dbErr);
+        return res.status(500).json({ success: false, error: 'Database operations failed during CSV import.' });
       }
     })
     .on('error', (parseErr) => {
@@ -1317,19 +1250,13 @@ app.post('/api/admin/upload-csv', requireAdmin, upload.single('csvFile'), async 
 });
 
 app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
-  const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    await client.query('DELETE FROM data_records');
-    await client.query('DELETE FROM data_schema');
-    await client.query('COMMIT');
+    await DataRecord.deleteMany({});
+    await DataSchema.deleteMany({});
     return res.json({ success: true, message: 'All database data records cleared.' });
   } catch (err) {
-    await client.query('ROLLBACK');
     console.error('Clear data error:', err);
     return res.status(500).json({ success: false, error: 'Failed to clear database records.' });
-  } finally {
-    client.release();
   }
 });
 
@@ -1337,8 +1264,8 @@ app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
 
 app.get('/api/schema', async (req, res) => {
   try {
-    const schemaRes = await pool.query('SELECT columns, filterable_options, total_records, uploaded_at FROM data_schema ORDER BY id DESC LIMIT 1');
-    if (schemaRes.rows.length === 0) {
+    const schemaDoc = await DataSchema.findOne().sort({ _id: -1 });
+    if (!schemaDoc) {
       return res.json({
         success: true,
         columns: [],
@@ -1347,13 +1274,12 @@ app.get('/api/schema', async (req, res) => {
       });
     }
 
-    const schema = schemaRes.rows[0];
     return res.json({
       success: true,
-      columns: schema.columns || [],
-      filterableOptions: schema.filterable_options || {},
-      totalRecords: schema.total_records || 0,
-      uploadedAt: schema.uploaded_at
+      columns: schemaDoc.columns || [],
+      filterableOptions: schemaDoc.filterable_options || {},
+      totalRecords: schemaDoc.total_records || 0,
+      uploadedAt: schemaDoc.uploaded_at
     });
   } catch (err) {
     console.error('Fetch schema error:', err);
@@ -1367,7 +1293,6 @@ app.get('/api/search', async (req, res) => {
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
-    const offset = (page - 1) * limit;
 
     let filterParams = {};
     if (req.query.filters) {
@@ -1378,60 +1303,43 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    const schemaRes = await pool.query('SELECT columns FROM data_schema ORDER BY id DESC LIMIT 1');
-    const existingColumns = (schemaRes.rows.length > 0 && schemaRes.rows[0].columns) ? schemaRes.rows[0].columns : [];
+    const schemaDoc = await DataSchema.findOne().sort({ _id: -1 });
+    const existingColumns = (schemaDoc && schemaDoc.columns) ? schemaDoc.columns : [];
 
-    const whereConditions = ['deleted_at IS NULL'];
-    const values = [];
-    let paramIndex = 1;
+    let mongoQuery = { deleted_at: null };
 
-    // 1. Text Keyword Search
     if (queryStr) {
-      whereConditions.push(`search_text ILIKE $${paramIndex}`);
-      values.push(`%${queryStr}%`);
-      paramIndex++;
+      mongoQuery.search_text = { $regex: queryStr, $options: 'i' };
     }
 
-    // 2. Column Filters (Zone, Forona, Blood Group)
     if (filterParams && typeof filterParams === 'object') {
       Object.keys(filterParams).forEach(col => {
         const val = filterParams[col];
         if (val !== undefined && val !== null && val !== '') {
           const candidateKeys = getMatchingColumnKeys(col, existingColumns);
-
           if (candidateKeys.length > 0) {
-            const colOrConditions = candidateKeys.map(k => {
-              const cond = `data ->> $${paramIndex} ILIKE $${paramIndex + 1}`;
-              values.push(k);
-              values.push(val);
-              paramIndex += 2;
-              return cond;
-            });
-            whereConditions.push(`(${colOrConditions.join(' OR ')})`);
+            mongoQuery.$or = candidateKeys.map(k => ({
+              [`data.${k}`]: { $regex: `^${val}$`, $options: 'i' }
+            }));
           } else {
-            whereConditions.push(`data ->> $${paramIndex} ILIKE $${paramIndex + 1}`);
-            values.push(col);
-            values.push(val);
-            paramIndex += 2;
+            mongoQuery[`data.${col}`] = { $regex: `^${val}$`, $options: 'i' };
           }
         }
       });
     }
 
-    const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
+    const totalRecords = await DataRecord.countDocuments(mongoQuery);
+    const offset = (page - 1) * limit;
 
-    const countSql = `SELECT COUNT(*) FROM data_records ${whereClause}`;
-    const countRes = await pool.query(countSql, values);
-    const totalRecords = parseInt(countRes.rows[0].count, 10);
-
-    const dataSql = `SELECT id, data FROM data_records ${whereClause} ORDER BY id ASC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    const dataValues = [...values, limit, offset];
-    const dataRes = await pool.query(dataSql, dataValues);
+    const docs = await DataRecord.find(mongoQuery)
+      .sort({ createdAt: 1 })
+      .skip(offset)
+      .limit(limit);
 
     const now = new Date();
 
-    const records = dataRes.rows.map(r => {
-      const rec = { id: r.id, ...r.data };
+    const records = docs.map(doc => {
+      const rec = { id: doc._id.toString(), ...(doc.data || {}) };
 
       const dobVal = rec['Date of Birth'] || rec['DOB'] || rec['dob'];
       if (dobVal) {
@@ -1530,14 +1438,12 @@ function getMatchingColumnKeys(filterName, columns) {
 
 async function purgeOldSoftDeletedRecords() {
   try {
-    const drRes = await pool.query(
-      `DELETE FROM data_records WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '90 days'`
-    );
-    const uRes = await pool.query(
-      `DELETE FROM users WHERE deleted_at IS NOT NULL AND deleted_at < NOW() - INTERVAL '90 days'`
-    );
-    if (drRes.rowCount > 0 || uRes.rowCount > 0) {
-      console.log(`🧹 Auto-purged ${drRes.rowCount} soft-deleted data records and ${uRes.rowCount} users older than 90 days.`);
+    const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const drRes = await DataRecord.deleteMany({ deleted_at: { $ne: null, $lt: cutoff } });
+    const uRes = await User.deleteMany({ deleted_at: { $ne: null, $lt: cutoff } });
+
+    if (drRes.deletedCount > 0 || uRes.deletedCount > 0) {
+      console.log(`🧹 Auto-purged ${drRes.deletedCount} soft-deleted data records and ${uRes.deletedCount} users older than 90 days.`);
       await refreshSchemaMetadata();
     }
   } catch (err) {

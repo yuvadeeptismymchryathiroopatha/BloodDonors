@@ -1,7 +1,7 @@
 {
   "name": "bloodrupatha-donor-portal",
   "version": "1.0.0",
-  "description": "Ultra-lightweight data search and admin portal with Neon PostgreSQL",
+  "description": "Blood Donor search and admin portal powered by MongoDB",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -14,7 +14,7 @@
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "google-auth-library": "^11.0.0",
-    "multer": "^1.4.5-lts.1",
-    "pg": "^8.11.5"
+    "mongoose": "^9.11.0",
+    "multer": "^1.4.5-lts.1"
   }
 }

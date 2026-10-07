@@ -772,6 +772,21 @@ body {
   word-break: break-word;
 }
 
+.field-available {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.field-cooling {
+  color: var(--warning);
+  font-weight: 700;
+}
+
+.field-unavailable {
+  color: var(--danger);
+  font-weight: 700;
+}
+
 .donor-card-actions {
   display: flex;
   gap: 0.5rem;

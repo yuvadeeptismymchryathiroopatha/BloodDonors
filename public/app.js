@@ -402,61 +402,52 @@ class BloodDonorApp {
     }).join(' ');
   }
 
+  getDonorValue(donor, regex) {
+    const key = Object.keys(donor).find(k => !k.startsWith('_') && regex.test(k));
+    if (!key) return '';
+    const val = donor[key];
+    if (val === undefined || val === null || val === '') return '';
+    return val.toString().trim();
+  }
+
   createDonorCard(donor) {
     const card = document.createElement('div');
     const isAvailable = donor._isAvailable !== false;
     card.className = isAvailable ? 'donor-card' : 'donor-card donor-card-faded';
 
-    const bloodGroupKey = Object.keys(donor).find(k => /blood|group|bg/i.test(k));
-    const bloodGroup = (bloodGroupKey && donor[bloodGroupKey]) ? donor[bloodGroupKey].toString().trim().toUpperCase() : 'O+';
+    const name = this.toSentenceCase(this.getDonorValue(donor, /^(full\s*)?name$/i) || 'Blood Donor');
+    const bloodGroup = (this.getDonorValue(donor, /blood|group|bg/i) || 'O+').toUpperCase();
+    const age = this.getDonorValue(donor, /^age(\b|\s|$)/i);
+    const forane = this.toSentenceCase(this.getDonorValue(donor, /forona|forane/i));
+    const phone = this.getDonorValue(donor, /phone|contact|mobile/i);
+    const availabilityText = donor._statusBadge || (isAvailable ? 'Available to Donate' : 'Unavailable for Donation');
+    const availabilityClass = isAvailable ? 'field-available' : (donor._coolingDaysLeft > 0 ? 'field-cooling' : 'field-unavailable');
 
-    const nameKey = Object.keys(donor).find(k => /name/i.test(k));
-    const rawName = (nameKey && donor[nameKey]) ? donor[nameKey] : 'Blood Donor';
-    const name = this.toSentenceCase(rawName);
-
-    const phoneKey = Object.keys(donor).find(k => /phone|contact/i.test(k));
-    const phone = (phoneKey && donor[phoneKey]) ? donor[phoneKey] : '';
-
-    let fieldsHtml = '';
-    const ignoreKeys = new Set(['id', nameKey, bloodGroupKey, phoneKey, '_isAvailable', '_statusBadge', '_coolingDaysLeft']);
-
-    Object.keys(donor).forEach(k => {
-      if (ignoreKeys.has(k)) return;
-      const val = donor[k];
-      if (val !== undefined && val !== null && val !== '') {
-        const displayVal = (k.toLowerCase().includes('phone') || k.toLowerCase().includes('age')) ? val.toString() : this.toSentenceCase(val.toString());
-        let valStyle = '';
-        if (k.toLowerCase().includes('status') || k.toLowerCase().includes('availability')) {
-          valStyle = val.toString().toLowerCase().includes('unavail') ? 'color:#dc2626; font-weight:700;' : 'color:#10b981; font-weight:700;';
-        }
-        fieldsHtml += `
-          <div class="field-row">
-            <span class="field-label">${this.escapeHtml(k)}:</span>
-            <span class="field-value" style="${valStyle}">${this.escapeHtml(displayVal)}</span>
-          </div>
-        `;
-      }
-    });
+    const fieldRows = [
+      { label: 'Age', value: age },
+      { label: 'Forane', value: forane },
+      { label: 'Phone', value: phone },
+      { label: 'Availability', value: availabilityText, extraClass: availabilityClass }
+    ].filter(row => row.value).map(row => `
+      <div class="field-row">
+        <span class="field-label">${this.escapeHtml(row.label)}:</span>
+        <span class="field-value${row.extraClass ? ` ${row.extraClass}` : ''}">${this.escapeHtml(row.value)}</span>
+      </div>
+    `).join('');
 
     let cleanPhone = phone.replace(/[^0-9+]/g, '');
     let waPhone = cleanPhone.replace(/^\+/, '');
     if (waPhone.length === 10) waPhone = '91' + waPhone;
 
-    const statusBadgeText = donor._statusBadge || (isAvailable ? '🟢 Available to Donate' : '🔴 Unavailable for Donation');
-    const badgeClass = isAvailable ? 'status-active' : (donor._coolingDaysLeft > 0 ? 'status-cooling' : 'status-ineligible');
-
     card.innerHTML = `
       <div>
         <div class="donor-card-top">
-          <div>
-            <h3 class="donor-name">${this.escapeHtml(name)}</h3>
-            <span class="profile-status-badge ${badgeClass}" style="margin-top:0.25rem; font-size:0.75rem;">${this.escapeHtml(statusBadgeText)}</span>
-          </div>
+          <h3 class="donor-name">${this.escapeHtml(name)}</h3>
           <span class="donor-blood-badge">${this.escapeHtml(bloodGroup)}</span>
         </div>
         
-        <div class="donor-fields" style="margin-top:0.5rem;">
-          ${fieldsHtml}
+        <div class="donor-fields">
+          ${fieldRows}
         </div>
       </div>
 
