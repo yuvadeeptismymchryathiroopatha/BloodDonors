@@ -194,12 +194,7 @@ async function syncUserProfileToDataRecords(userId) {
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
 
-    const existing = await DataRecord.findOne({
-      $or: [
-        { "data.Email": user.email },
-        { "data.Phone": user.phone }
-      ]
-    });
+    const existing = user.email ? await DataRecord.findOne({ "data.Email": user.email.toLowerCase().trim() }) : null;
 
     if (existing) {
       existing.data = formattedRecord;
