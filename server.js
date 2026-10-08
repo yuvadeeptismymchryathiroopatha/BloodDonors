@@ -194,27 +194,44 @@ async function syncUserProfileToDataRecords(userId) {
 
     const searchText = Object.values(formattedRecord).filter(Boolean).join(' | ');
 
-    const existing = await DataRecord.findOne({
-      $or: [
-        { "data.Email": user.email ? user.email.toLowerCase().trim() : null },
-        { "data.Phone": user.phone ? user.phone.trim() : null }
-      ].filter(cond => Object.values(cond)[0] !== null)
-    });
+    let existing = null;
+    if (user.email) {
+      existing = await DataRecord.findOne({ "data.Email": user.email.toLowerCase().trim() });
+    }
+    if (!existing && user.phone) {
+      existing = await DataRecord.findOne({ "data.Phone": user.phone.trim(), "data.Name": user.name.trim() });
+    }
 
     if (existing) {
       existing.data = formattedRecord;
       existing.search_text = searchText;
+      existing.deleted_at = null;
       await existing.save();
     } else {
       await DataRecord.create({
         data: formattedRecord,
-        search_text: searchText
+        search_text: searchText,
+        deleted_at: null
       });
     }
 
     await refreshSchemaMetadata();
   } catch (err) {
     console.error('Error syncing user profile to data_records:', err);
+  }
+}
+
+// SYNC ALL REGISTERED USERS TO PUBLIC DATA_RECORDS TABLE
+async function syncAllUsersToDataRecords() {
+  try {
+    const users = await User.find({ deleted_at: null });
+    for (const u of users) {
+      if (u.name && u.phone) {
+        await syncUserProfileToDataRecords(u._id);
+      }
+    }
+  } catch (err) {
+    console.error('Error syncing all users to data_records:', err);
   }
 }
 
@@ -1310,6 +1327,8 @@ app.get('/api/schema', async (req, res) => {
 // PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Cooling Period of 90 days)
 app.get('/api/search', async (req, res) => {
   try {
+    await syncAllUsersToDataRecords();
+
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
