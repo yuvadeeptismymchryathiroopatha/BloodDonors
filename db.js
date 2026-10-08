@@ -94,20 +94,32 @@ async function initDb() {
     throw e;
   }
 
-  // Seed default admin if no admin exists
+  // Seed / update default admin user
   try {
-    const adminCount = await AdminUser.countDocuments({});
-    if (adminCount === 0) {
-      const defaultUsername = 'smymChry@blood';
-      const defaultPassword = "It'sAdmin@2026";
-      const salt = await bcrypt.genSalt(10);
-      const hash = await bcrypt.hash(defaultPassword, salt);
+    const defaultUsername = 'smymChry@blood';
+    const defaultPassword = 'QPeIogcNhsGy8f9n';
+    const salt = await bcrypt.genSalt(10);
+    const hash = await bcrypt.hash(defaultPassword, salt);
 
-      await AdminUser.create({
-        username: defaultUsername,
-        password_hash: hash
-      });
-      console.log(`Default admin user seeded: ${defaultUsername}`);
+    let admin = await AdminUser.findOne({ username: defaultUsername.toLowerCase() });
+    if (!admin) {
+      const firstAdmin = await AdminUser.findOne();
+      if (firstAdmin) {
+        firstAdmin.username = defaultUsername;
+        firstAdmin.password_hash = hash;
+        await firstAdmin.save();
+        console.log(`Admin user updated to: ${defaultUsername}`);
+      } else {
+        await AdminUser.create({
+          username: defaultUsername,
+          password_hash: hash
+        });
+        console.log(`Default admin user seeded: ${defaultUsername}`);
+      }
+    } else {
+      admin.password_hash = hash;
+      await admin.save();
+      console.log(`Admin user password updated for: ${defaultUsername}`);
     }
   } catch (seedErr) {
     console.error('Admin seed check error:', seedErr);
