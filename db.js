@@ -44,13 +44,24 @@ const dataRecordSchema = new mongoose.Schema({
   deleted_at: { type: Date, default: null }
 }, { timestamps: true });
 
-// Performance Indexes for MongoDB fast search & lazy loading
+// Performance Indexes for MongoDB fast search, lazy loading & multi-attribute sorting
 dataRecordSchema.index({ deleted_at: 1, createdAt: -1 });
 dataRecordSchema.index({ deleted_at: 1, createdAt: 1 });
 dataRecordSchema.index({ deleted_at: 1, search_text: 1 });
 dataRecordSchema.index({ deleted_at: 1, 'data.Blood Group': 1 });
 dataRecordSchema.index({ deleted_at: 1, 'data.Zone': 1 });
 dataRecordSchema.index({ deleted_at: 1, 'data.Forane': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Name': 1 });
+// Compound sorting indexes for attribute combinations:
+dataRecordSchema.index({ deleted_at: 1, 'data.Zone': 1, 'data.Forane': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Zone': 1, 'data.Blood Group': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Forane': 1, 'data.Zone': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Forane': 1, 'data.Blood Group': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Blood Group': 1, 'data.Zone': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Blood Group': 1, 'data.Forane': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Zone': 1, 'data.Forane': 1, 'data.Blood Group': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Forane': 1, 'data.Zone': 1, 'data.Blood Group': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Blood Group': 1, 'data.Zone': 1, 'data.Forane': 1 });
 dataRecordSchema.index({ 'data.Email': 1 });
 dataRecordSchema.index({ 'data.Phone': 1, 'data.Name': 1 });
 

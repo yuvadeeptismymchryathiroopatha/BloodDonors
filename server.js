@@ -875,9 +875,14 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       });
     }
 
-    // High performance indexed MongoDB query using lean()
+    const sortKey = req.query.sort || 'newest';
+    const schemaDoc = await getSchemaMetadataCached();
+    const existingColumns = (schemaDoc && schemaDoc.columns) ? schemaDoc.columns : [];
+    const sortObj = buildDonorSortObject(sortKey, existingColumns);
+
+    // High performance indexed MongoDB query using lean() with flexible combination sort
     const allRecordsDocs = await DataRecord.find(filterQuery)
-      .sort({ createdAt: -1 })
+      .sort(sortObj)
       .lean();
 
     const now = new Date();
@@ -956,7 +961,8 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
         limit,
         totalRecords,
         totalPages: Math.ceil(totalRecords / limit) || 1,
-        hasMore: (offset + paginatedRecords.length) < totalRecords
+        hasMore: (offset + paginatedRecords.length) < totalRecords,
+        sort: sortKey
       }
     });
   } catch (err) {
@@ -1431,9 +1437,12 @@ app.get('/api/search', async (req, res) => {
     const totalRecords = await DataRecord.countDocuments(mongoQuery);
     const offset = (page - 1) * limit;
 
-    // Use indexed query with .lean() for maximum throughput
+    const sortKey = req.query.sort || 'newest';
+    const sortObj = buildDonorSortObject(sortKey, existingColumns);
+
+    // Use indexed query with .lean() for maximum throughput with combination sort
     const docs = await DataRecord.find(mongoQuery)
-      .sort({ createdAt: 1 })
+      .sort(sortObj)
       .skip(offset)
       .limit(limit)
       .lean();
@@ -1502,7 +1511,8 @@ app.get('/api/search', async (req, res) => {
         limit,
         totalRecords,
         totalPages,
-        hasMore
+        hasMore,
+        sort: sortKey
       }
     });
   } catch (err) {
@@ -1510,6 +1520,48 @@ app.get('/api/search', async (req, res) => {
     return res.status(500).json({ success: false, error: 'Failed to perform search.' });
   }
 });
+
+// DYNAMIC DONOR SORT HELPER (Supports Zone, Forane, Blood Group & Combinations)
+function buildDonorSortObject(sortKey, columns = []) {
+  const zoneCol = columns.find(c => /zone/i.test(c)) || 'Zone';
+  const foraneCol = columns.find(c => /forona|forane/i.test(c)) || 'Forane';
+  const bgCol = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
+  const nameCol = columns.find(c => /^(full\s*)?name$/i.test(c)) || 'Name';
+
+  switch (sortKey) {
+    case 'zone_asc':
+      return { [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'forane_asc':
+      return { [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'blood_group_asc':
+      return { [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'zone_forane':
+      return { [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'zone_bg':
+      return { [`data.${zoneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'forane_zone':
+      return { [`data.${foraneCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'forane_bg':
+      return { [`data.${foraneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'bg_zone':
+      return { [`data.${bgCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'bg_forane':
+      return { [`data.${bgCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'zone_forane_bg':
+      return { [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'forane_zone_bg':
+      return { [`data.${foraneCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'bg_zone_forane':
+      return { [`data.${bgCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
+    case 'name_asc':
+      return { [`data.${nameCol}`]: 1 };
+    case 'oldest':
+      return { createdAt: 1 };
+    case 'newest':
+    default:
+      return { createdAt: -1 };
+  }
+}
 
 function getMatchingColumnKeys(filterName, columns) {
   const norm = filterName.toLowerCase().trim();

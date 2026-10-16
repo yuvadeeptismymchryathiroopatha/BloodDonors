@@ -656,21 +656,65 @@ body {
   margin-left: 0.5rem;
 }
 
-.records-per-page {
+.results-controls {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: var(--text-muted);
+  gap: 1rem;
+  flex-wrap: wrap;
 }
 
-.records-per-page select {
-  padding: 0.35rem 0.6rem;
+.sort-control {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.sort-control label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.sort-control select {
+  padding: 0.38rem 0.75rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border-color);
   font-size: 0.85rem;
+  font-weight: 600;
   background: var(--input-bg);
   color: var(--text-main);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+
+.sort-control select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.15);
+}
+
+.records-per-page {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.records-per-page select {
+  padding: 0.38rem 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--input-bg);
+  color: var(--text-main);
+  cursor: pointer;
 }
 
 .results-grid {

@@ -107,13 +107,46 @@
           <span class="results-count" id="resultsCount">Loading records...</span>
           <span class="dataset-meta" id="datasetMeta"></span>
         </div>
-        <div class="records-per-page">
-          <label for="limitSelect">Batch Size:</label>
-          <select id="limitSelect" onchange="app.changeLimit(this.value)">
-            <option value="12" selected>12 at a time</option>
-            <option value="24">24 at a time</option>
-            <option value="48">48 at a time</option>
-          </select>
+        <div class="results-controls">
+          <div class="sort-control">
+            <label for="sortSelect">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 16 4 4 4-4"/><path d="M7 20V4"/><path d="m21 8-4-4-4 4"/><path d="M17 4v16"/></svg>
+              <span>Sort By:</span>
+            </label>
+            <select id="sortSelect" onchange="app.changeSort(this.value)">
+              <optgroup label="Default Order">
+                <option value="newest" selected>Newest Donors First</option>
+                <option value="name_asc">Donor Name (A → Z)</option>
+              </optgroup>
+              <optgroup label="Single Attribute">
+                <option value="zone_asc">Zone (A → Z)</option>
+                <option value="forane_asc">Forane (A → Z)</option>
+                <option value="blood_group_asc">Blood Group (A → Z)</option>
+              </optgroup>
+              <optgroup label="Combinations (2 Attributes)">
+                <option value="zone_forane">Zone → then Forane</option>
+                <option value="zone_bg">Zone → then Blood Group</option>
+                <option value="forane_bg">Forane → then Blood Group</option>
+                <option value="forane_zone">Forane → then Zone</option>
+                <option value="bg_zone">Blood Group → then Zone</option>
+                <option value="bg_forane">Blood Group → then Forane</option>
+              </optgroup>
+              <optgroup label="Full Combinations (3 Attributes)">
+                <option value="zone_forane_bg">Zone → Forane → Blood Group</option>
+                <option value="forane_zone_bg">Forane → Zone → Blood Group</option>
+                <option value="bg_zone_forane">Blood Group → Zone → Forane</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <div class="records-per-page">
+            <label for="limitSelect">Batch Size:</label>
+            <select id="limitSelect" onchange="app.changeLimit(this.value)">
+              <option value="12" selected>12 at a time</option>
+              <option value="24">24 at a time</option>
+              <option value="48">48 at a time</option>
+            </select>
+          </div>
         </div>
       </section>
 

@@ -18,6 +18,7 @@ class AdminApp {
     this.adminTotalRecords = 0;
     this.adminSearchQuery = '';
     this.adminStatusFilter = 'all'; // 'all', 'active', 'non-active'
+    this.adminSort = 'newest';
     this.adminFilters = {}; // { Zone, Forane, Blood Group }
     this.currentFilteredRecordIds = [];
     this.adminRecordsMap = {};
@@ -223,7 +224,8 @@ class AdminApp {
         page: this.adminCurrentPage,
         limit: this.adminLimit,
         q: this.adminSearchQuery,
-        statusFilter: this.adminStatusFilter
+        statusFilter: this.adminStatusFilter,
+        sort: this.adminSort
       });
 
       if (Object.keys(this.adminFilters).length > 0) {
@@ -604,11 +606,20 @@ class AdminApp {
 
     const searchInput = document.getElementById('adminSearchInput');
     const statusSelect = document.getElementById('adminStatusFilter');
+    const sortSelect = document.getElementById('adminSortSelect');
     if (searchInput) searchInput.value = '';
     if (statusSelect) statusSelect.value = 'all';
+    if (sortSelect) sortSelect.value = 'newest';
+    this.adminSort = 'newest';
 
     this.renderAdminFilterDropdowns();
     this.loadSchema();
+    this.loadAdminTable();
+  }
+
+  changeAdminSort(newSort) {
+    this.adminSort = newSort || 'newest';
+    this.adminCurrentPage = 1;
     this.loadAdminTable();
   }
 

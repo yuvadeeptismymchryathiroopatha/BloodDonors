@@ -15,6 +15,7 @@ class BloodDonorApp {
     this.limit = 12;
     this.searchQuery = '';
     this.filters = {};
+    this.sortBy = 'newest';
     this.activeRequestController = null;
     this.totalPages = 1;
     this.totalRecords = 0;
@@ -330,9 +331,19 @@ class BloodDonorApp {
     if (this.foraneSelectEl) {
       this.updateForaneOptionsForZone('', this.foraneSelectEl, this.foronaKey);
     }
+    const sortSelect = document.getElementById('sortSelect');
+    if (sortSelect) sortSelect.value = 'newest';
+    this.sortBy = 'newest';
+
     this.currentPage = 1;
     this.performSearch(false);
     this.toggleResetButton();
+  }
+
+  changeSort(newSort) {
+    this.sortBy = newSort || 'newest';
+    this.currentPage = 1;
+    this.performSearch(false);
   }
 
   async performSearch(append = false) {
@@ -377,6 +388,10 @@ class BloodDonorApp {
 
       if (this.searchQuery) {
         params.append('q', this.searchQuery);
+      }
+
+      if (this.sortBy) {
+        params.append('sort', this.sortBy);
       }
 
       if (Object.keys(this.filters).length > 0) {

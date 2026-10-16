@@ -163,6 +163,34 @@
                 </select>
               </div>
 
+              <!-- Sort Option Dropdown -->
+              <div class="admin-sort-select" style="min-width: 210px;">
+                <select id="adminSortSelect" onchange="adminApp.changeAdminSort(this.value)" class="filter-select">
+                  <optgroup label="Default Order">
+                    <option value="newest" selected>Sort: Newest First</option>
+                    <option value="name_asc">Sort: Name (A → Z)</option>
+                  </optgroup>
+                  <optgroup label="Single Attribute">
+                    <option value="zone_asc">Sort: Zone (A → Z)</option>
+                    <option value="forane_asc">Sort: Forane (A → Z)</option>
+                    <option value="blood_group_asc">Sort: Blood Group (A → Z)</option>
+                  </optgroup>
+                  <optgroup label="Combinations (2 Attributes)">
+                    <option value="zone_forane">Sort: Zone → Forane</option>
+                    <option value="zone_bg">Sort: Zone → Blood Group</option>
+                    <option value="forane_bg">Sort: Forane → Blood Group</option>
+                    <option value="forane_zone">Sort: Forane → Zone</option>
+                    <option value="bg_zone">Sort: Blood Group → Zone</option>
+                    <option value="bg_forane">Sort: Blood Group → Forane</option>
+                  </optgroup>
+                  <optgroup label="Full Combinations (3 Attributes)">
+                    <option value="zone_forane_bg">Sort: Zone → Forane → Blood Group</option>
+                    <option value="forane_zone_bg">Sort: Forane → Zone → Blood Group</option>
+                    <option value="bg_zone_forane">Sort: Blood Group → Zone → Forane</option>
+                  </optgroup>
+                </select>
+              </div>
+
               <!-- Dynamic Dropdown Condition Filters (Zone, Forane, Blood Group) -->
               <div id="adminFiltersContainer" style="display: flex; gap: 0.5rem; flex-wrap: wrap;"></div>
             </div>
