@@ -127,6 +127,25 @@ function invalidateAnalyticsCache() {
   analyticsCacheExpiry = 0;
 }
 
+function escapeRegex(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function buildSearchTextRegex(queryStr) {
+  const trimmed = (queryStr || '').trim();
+  const escaped = escapeRegex(trimmed);
+  if (!escaped) return null;
+
+  // If query is an exact blood group (e.g. O+, A+, B+, AB+, O-, A-, B-, AB-),
+  // match with whitespace/delimiter boundaries so 'B+' does not match 'AB+'.
+  if (/^(A|B|AB|O)[+-]$/i.test(trimmed)) {
+    return `(^|[\\s|])${escaped}([\\s|]|$)`;
+  }
+
+  return escaped;
+}
+
 async function refreshSchemaMetadata() {
   // Query only data field with lean() to eliminate Mongoose model overhead
   const allRecords = await DataRecord.find({ deleted_at: null }, { data: 1 }).lean();
@@ -855,8 +874,15 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       filterQuery.deleted_at = null;
     }
 
+    const sortKey = req.query.sort || 'newest';
+    const schemaDoc = await getSchemaMetadataCached();
+    const existingColumns = (schemaDoc && schemaDoc.columns) ? schemaDoc.columns : [];
+
     if (q) {
-      filterQuery.search_text = { $regex: q, $options: 'i' };
+      const qRx = buildSearchTextRegex(q);
+      if (qRx) {
+        filterQuery.search_text = { $regex: qRx, $options: 'i' };
+      }
     }
 
     const filtersParam = req.query.filters;
@@ -870,14 +896,23 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
     if (filters && typeof filters === 'object' && Object.keys(filters).length > 0) {
       Object.entries(filters).forEach(([col, targetVal]) => {
         if (targetVal) {
-          filterQuery[`data.${col}`] = { $regex: `^${targetVal}$`, $options: 'i' };
+          const candidateKeys = getMatchingColumnKeys(col, existingColumns);
+          if (candidateKeys.length === 1) {
+            filterQuery[`data.${candidateKeys[0]}`] = { $regex: `^${escapeRegex(targetVal)}$`, $options: 'i' };
+          } else if (candidateKeys.length > 1) {
+            if (!filterQuery.$and) filterQuery.$and = [];
+            filterQuery.$and.push({
+              $or: candidateKeys.map(k => ({
+                [`data.${k}`]: { $regex: `^${escapeRegex(targetVal)}$`, $options: 'i' }
+              }))
+            });
+          } else {
+            filterQuery[`data.${col}`] = { $regex: `^${escapeRegex(targetVal)}$`, $options: 'i' };
+          }
         }
       });
     }
 
-    const sortKey = req.query.sort || 'newest';
-    const schemaDoc = await getSchemaMetadataCached();
-    const existingColumns = (schemaDoc && schemaDoc.columns) ? schemaDoc.columns : [];
     const sortObj = buildDonorSortObject(sortKey, existingColumns);
 
     // High performance indexed MongoDB query using lean() with flexible combination sort
@@ -1415,7 +1450,10 @@ app.get('/api/search', async (req, res) => {
     let mongoQuery = { deleted_at: null };
 
     if (queryStr) {
-      mongoQuery.search_text = { $regex: queryStr, $options: 'i' };
+      const qRx = buildSearchTextRegex(queryStr);
+      if (qRx) {
+        mongoQuery.search_text = { $regex: qRx, $options: 'i' };
+      }
     }
 
     if (filterParams && typeof filterParams === 'object') {
@@ -1423,12 +1461,17 @@ app.get('/api/search', async (req, res) => {
         const val = filterParams[col];
         if (val !== undefined && val !== null && val !== '') {
           const candidateKeys = getMatchingColumnKeys(col, existingColumns);
-          if (candidateKeys.length > 0) {
-            mongoQuery.$or = candidateKeys.map(k => ({
-              [`data.${k}`]: { $regex: `^${val}$`, $options: 'i' }
-            }));
+          if (candidateKeys.length === 1) {
+            mongoQuery[`data.${candidateKeys[0]}`] = { $regex: `^${escapeRegex(val)}$`, $options: 'i' };
+          } else if (candidateKeys.length > 1) {
+            if (!mongoQuery.$and) mongoQuery.$and = [];
+            mongoQuery.$and.push({
+              $or: candidateKeys.map(k => ({
+                [`data.${k}`]: { $regex: `^${escapeRegex(val)}$`, $options: 'i' }
+              }))
+            });
           } else {
-            mongoQuery[`data.${col}`] = { $regex: `^${val}$`, $options: 'i' };
+            mongoQuery[`data.${col}`] = { $regex: `^${escapeRegex(val)}$`, $options: 'i' };
           }
         }
       });
@@ -1579,8 +1622,8 @@ function getMatchingColumnKeys(filterName, columns) {
     if (matches.length > 0) return matches;
   }
 
-  if (norm.includes('forona') || norm.includes('forane') || norm.includes('unit')) {
-    const matches = columns.filter(c => /forona|forane|unit/i.test(c));
+  if (norm.includes('forona') || norm.includes('forane')) {
+    const matches = columns.filter(c => /forona|forane/i.test(c));
     if (matches.length > 0) return matches;
   }
 
