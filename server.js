@@ -1564,38 +1564,11 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-// DYNAMIC DONOR SORT HELPER (Supports Zone, Forane, Blood Group & Combinations)
+// DONOR SORT HELPER
 function buildDonorSortObject(sortKey, columns = []) {
-  const zoneCol = columns.find(c => /zone/i.test(c)) || 'Zone';
-  const foraneCol = columns.find(c => /forona|forane/i.test(c)) || 'Forane';
-  const bgCol = columns.find(c => /blood|group|bg/i.test(c)) || 'Blood Group';
   const nameCol = columns.find(c => /^(full\s*)?name$/i.test(c)) || 'Name';
 
   switch (sortKey) {
-    case 'zone_asc':
-      return { [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'forane_asc':
-      return { [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'blood_group_asc':
-      return { [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'zone_forane':
-      return { [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'zone_bg':
-      return { [`data.${zoneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'forane_zone':
-      return { [`data.${foraneCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'forane_bg':
-      return { [`data.${foraneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'bg_zone':
-      return { [`data.${bgCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'bg_forane':
-      return { [`data.${bgCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'zone_forane_bg':
-      return { [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'forane_zone_bg':
-      return { [`data.${foraneCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${bgCol}`]: 1, [`data.${nameCol}`]: 1 };
-    case 'bg_zone_forane':
-      return { [`data.${bgCol}`]: 1, [`data.${zoneCol}`]: 1, [`data.${foraneCol}`]: 1, [`data.${nameCol}`]: 1 };
     case 'name_asc':
       return { [`data.${nameCol}`]: 1 };
     case 'oldest':

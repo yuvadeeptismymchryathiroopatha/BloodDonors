@@ -114,28 +114,9 @@
               <span>Sort By:</span>
             </label>
             <select id="sortSelect" onchange="app.changeSort(this.value)">
-              <optgroup label="Default Order">
-                <option value="newest" selected>Newest Donors First</option>
-                <option value="name_asc">Donor Name (A → Z)</option>
-              </optgroup>
-              <optgroup label="Single Attribute">
-                <option value="zone_asc">Zone (A → Z)</option>
-                <option value="forane_asc">Forane (A → Z)</option>
-                <option value="blood_group_asc">Blood Group (A → Z)</option>
-              </optgroup>
-              <optgroup label="Combinations (2 Attributes)">
-                <option value="zone_forane">Zone → then Forane</option>
-                <option value="zone_bg">Zone → then Blood Group</option>
-                <option value="forane_bg">Forane → then Blood Group</option>
-                <option value="forane_zone">Forane → then Zone</option>
-                <option value="bg_zone">Blood Group → then Zone</option>
-                <option value="bg_forane">Blood Group → then Forane</option>
-              </optgroup>
-              <optgroup label="Full Combinations (3 Attributes)">
-                <option value="zone_forane_bg">Zone → Forane → Blood Group</option>
-                <option value="forane_zone_bg">Forane → Zone → Blood Group</option>
-                <option value="bg_zone_forane">Blood Group → Zone → Forane</option>
-              </optgroup>
+              <option value="newest" selected>Newest Donors First</option>
+              <option value="name_asc">Donor Name (A → Z)</option>
+              <option value="oldest">Oldest First</option>
             </select>
           </div>
 
