@@ -16,6 +16,12 @@ class BloodDonorApp {
     this.searchQuery = '';
     this.filters = {};
     this.activeRequestController = null;
+    this.totalPages = 1;
+    this.totalRecords = 0;
+    this.loadedDonorsCount = 0;
+    this.isLoading = false;
+    this.hasMore = false;
+    this.intersectionObserver = null;
 
     // Zone to Foranes official mapping
     this.zoneForaneMap = {
@@ -33,8 +39,36 @@ class BloodDonorApp {
 
   async init() {
     this.setupEventListeners();
+    this.setupLazyLoadingObserver();
     await this.fetchSchema();
-    this.performSearch();
+    this.performSearch(false);
+  }
+
+  setupLazyLoadingObserver() {
+    const sentinel = document.getElementById('lazyLoadSentinel');
+    if (!sentinel) return;
+
+    if ('IntersectionObserver' in window) {
+      this.intersectionObserver = new IntersectionObserver((entries) => {
+        const entry = entries[0];
+        if (entry && entry.isIntersecting) {
+          if (!this.isLoading && this.hasMore) {
+            this.loadNextPage();
+          }
+        }
+      }, {
+        rootMargin: '250px 0px',
+        threshold: 0.05
+      });
+
+      this.intersectionObserver.observe(sentinel);
+    }
+  }
+
+  loadNextPage() {
+    if (this.isLoading || !this.hasMore) return;
+    this.currentPage++;
+    this.performSearch(true);
   }
 
   setupEventListeners() {
@@ -297,28 +331,43 @@ class BloodDonorApp {
       this.updateForaneOptionsForZone('', this.foraneSelectEl, this.foronaKey);
     }
     this.currentPage = 1;
-    this.performSearch();
+    this.performSearch(false);
     this.toggleResetButton();
   }
 
-  async performSearch() {
-    if (this.activeRequestController) {
-      this.activeRequestController.abort();
+  async performSearch(append = false) {
+    if (this.isLoading && !append) {
+      if (this.activeRequestController) {
+        this.activeRequestController.abort();
+      }
     }
+
     this.activeRequestController = new AbortController();
 
     const resultsContainer = document.getElementById('resultsContainer');
     const resultsCount = document.getElementById('resultsCount');
+    const lazyLoader = document.getElementById('lazyLoader');
+    const loadMoreContainer = document.getElementById('loadMoreContainer');
 
-    if (resultsContainer) {
-      resultsContainer.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">⏳</div>
-          <h3 class="empty-title">Searching Blood Donors...</h3>
-          <p class="empty-desc">Fetching active eligible donors (Age 18 to 55).</p>
-        </div>
-      `;
+    if (!append) {
+      this.currentPage = 1;
+      this.loadedDonorsCount = 0;
+      if (resultsContainer) {
+        resultsContainer.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">⏳</div>
+            <h3 class="empty-title">Searching Blood Donors...</h3>
+            <p class="empty-desc">Fetching active eligible donors (Age 18 to 55) from MongoDB.</p>
+          </div>
+        `;
+      }
+      if (loadMoreContainer) loadMoreContainer.classList.add('hidden');
+    } else {
+      if (lazyLoader) lazyLoader.classList.remove('hidden');
+      if (loadMoreContainer) loadMoreContainer.classList.add('hidden');
     }
+
+    this.isLoading = true;
 
     try {
       const params = new URLSearchParams({
@@ -341,48 +390,74 @@ class BloodDonorApp {
       const data = await response.json();
 
       if (data.success) {
-        this.renderResults(data.records, data.pagination);
+        this.totalPages = data.pagination.totalPages || 1;
+        this.totalRecords = data.pagination.totalRecords || 0;
+        this.hasMore = data.pagination.hasMore !== undefined ? data.pagination.hasMore : (this.currentPage < this.totalPages);
+        this.renderResults(data.records, data.pagination, append);
       } else {
-        this.renderError(data.error || 'Search failed.');
+        if (!append) this.renderError(data.error || 'Search failed.');
       }
     } catch (err) {
       if (err.name === 'AbortError') return;
       console.error('Search request error:', err);
-      this.renderError('Unable to load donor records. Please check server connection.');
+      if (!append) this.renderError('Unable to load donor records. Please check server connection.');
+    } finally {
+      this.isLoading = false;
+      if (lazyLoader) lazyLoader.classList.add('hidden');
+      if (loadMoreContainer) {
+        if (this.hasMore) {
+          loadMoreContainer.classList.remove('hidden');
+        } else {
+          loadMoreContainer.classList.add('hidden');
+        }
+      }
     }
   }
 
-  renderResults(records, pagination) {
+  renderResults(records, pagination, append = false) {
     const container = document.getElementById('resultsContainer');
     const resultsCount = document.getElementById('resultsCount');
     const paginationContainer = document.getElementById('paginationContainer');
 
     if (!container) return;
 
+    if (!append) {
+      if (!records || records.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state">
+            <div class="empty-icon">🩸</div>
+            <h3 class="empty-title">No Eligible Active Donors Found</h3>
+            <p class="empty-desc">Try clearing search keywords or selecting different Zone / Forane filters. Note: Only donors aged 18 to 55 are displayed.</p>
+            <button class="btn btn-outline btn-sm" onclick="app.resetFilters()">Reset All Filters</button>
+          </div>
+        `;
+        if (resultsCount) resultsCount.textContent = '0 Eligible Donors Found';
+        if (paginationContainer) paginationContainer.classList.add('hidden');
+        return;
+      }
+
+      container.innerHTML = '';
+      this.loadedDonorsCount = records.length;
+    } else {
+      this.loadedDonorsCount += (records ? records.length : 0);
+    }
+
     if (resultsCount) {
       const total = pagination.totalRecords || 0;
-      resultsCount.textContent = `${total.toLocaleString()} Eligible Active Donor(s) Found`;
+      if (this.hasMore) {
+        resultsCount.textContent = `Showing ${this.loadedDonorsCount} of ${total.toLocaleString()} Eligible Donors (Scroll to load more)`;
+      } else {
+        resultsCount.textContent = `Showing all ${total.toLocaleString()} Eligible Active Donor(s)`;
+      }
     }
 
-    if (!records || records.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="empty-icon">🩸</div>
-          <h3 class="empty-title">No Eligible Active Donors Found</h3>
-          <p class="empty-desc">Try clearing search keywords or selecting different Zone / Forane filters. Note: Only donors aged 18 to 55 are displayed.</p>
-          <button class="btn btn-outline btn-sm" onclick="app.resetFilters()">Reset All Filters</button>
-        </div>
-      `;
-      if (paginationContainer) paginationContainer.classList.add('hidden');
-      return;
+    if (records && records.length > 0) {
+      records.forEach(donor => {
+        const card = this.createDonorCard(donor);
+        if (append) card.classList.add('card-enter');
+        container.appendChild(card);
+      });
     }
-
-    container.innerHTML = '';
-
-    records.forEach(donor => {
-      const card = this.createDonorCard(donor);
-      container.appendChild(card);
-    });
 
     this.renderPagination(pagination);
   }
@@ -510,7 +585,7 @@ class BloodDonorApp {
   changeLimit(newLimit) {
     this.limit = parseInt(newLimit, 10) || 12;
     this.currentPage = 1;
-    this.performSearch();
+    this.performSearch(false);
   }
 
   renderError(message) {

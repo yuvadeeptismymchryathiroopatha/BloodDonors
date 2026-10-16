@@ -28,7 +28,7 @@
   <header class="navbar">
     <div class="container navbar-inner">
       <a href="index.html" class="brand">
-        <img src="images/logo-light.png" alt="Yuva Blood Forum logo" class="logo-img" data-site-logo width="48" height="48">
+        <img src="images/logo-light.png" alt="Yuva Blood Forum logo" class="logo-img" data-site-logo width="48" height="48" loading="lazy" decoding="async">
         <div class="brand-text">
           <h1 class="brand-title">Yuva Blood Forum</h1>
         </div>
@@ -206,7 +206,16 @@
             </table>
           </div>
 
-          <div id="adminTablePagination" class="pagination-wrapper" style="margin-top: 1.25rem;">
+          <div id="adminTablePagination" class="pagination-wrapper" style="margin-top: 1.25rem; flex-wrap: wrap; gap: 0.75rem;">
+            <div class="pagination-size-control">
+              <label for="adminLimitSelect" style="font-size: 0.85rem; font-weight: 600; color: var(--text-muted); margin-right: 0.4rem;">Per Page:</label>
+              <select id="adminLimitSelect" onchange="adminApp.changePageSize(this.value)" class="filter-select" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; width: auto; display: inline-block;">
+                <option value="25">25</option>
+                <option value="50" selected>50</option>
+                <option value="100">100</option>
+                <option value="250">250</option>
+              </select>
+            </div>
             <button id="adminPrevBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(-1)">&larr; Prev</button>
             <span id="adminPageIndicator" class="page-indicator">Page 1 of 1</span>
             <button id="adminNextBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeAdminPage(1)">Next &rarr;</button>

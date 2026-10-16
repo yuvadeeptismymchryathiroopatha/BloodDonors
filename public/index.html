@@ -28,7 +28,7 @@
   <header class="navbar">
     <div class="container navbar-inner">
       <a href="index.html" class="brand">
-        <img src="images/logo-light.png" alt="Yuva Blood Forum logo" class="logo-img" data-site-logo width="48" height="48">
+        <img src="images/logo-light.png" alt="Yuva Blood Forum logo" class="logo-img" data-site-logo width="48" height="48" loading="lazy" decoding="async">
         <div class="brand-text">
           <h1 class="brand-title">Yuva Blood Forum</h1>
         </div>
@@ -70,7 +70,7 @@
     <div class="container">
 
       <div class="hero-banner">
-        <img src="images/logo-light.png" alt="" class="hero-logo" data-site-logo width="120" height="120">
+        <img src="images/logo-light.png" alt="" class="hero-logo" data-site-logo width="120" height="120" loading="lazy" decoding="async">
         <p class="hero-eyebrow">Donor Directory</p>
         <h2 class="hero-title">Yuva Blood Forum</h2>
         <p class="hero-desc org-name">
@@ -108,16 +108,35 @@
           <span class="dataset-meta" id="datasetMeta"></span>
         </div>
         <div class="records-per-page">
-          <label for="limitSelect">Show:</label>
+          <label for="limitSelect">Batch Size:</label>
           <select id="limitSelect" onchange="app.changeLimit(this.value)">
-            <option value="12" selected>12 per page</option>
-            <option value="24">24 per page</option>
-            <option value="48">48 per page</option>
+            <option value="12" selected>12 at a time</option>
+            <option value="24">24 at a time</option>
+            <option value="48">48 at a time</option>
           </select>
         </div>
       </section>
 
       <section id="resultsContainer" class="results-grid"></section>
+
+      <!-- Lazy Loading Sentinel & Modern Spinner -->
+      <div id="lazyLoader" class="lazy-loader hidden">
+        <div class="lazy-spinner"></div>
+        <span class="lazy-text">⚡ Lazily loading more donors...</span>
+      </div>
+
+      <!-- Load More Action Trigger (UX Fallback) -->
+      <div id="loadMoreContainer" class="load-more-container hidden">
+        <button id="loadMoreBtn" class="btn btn-outline btn-load-more" onclick="app.loadNextPage()">
+          <span>Load More Donors</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Scroll Sentinel for IntersectionObserver -->
+      <div id="lazyLoadSentinel" class="lazy-sentinel" aria-hidden="true"></div>
 
       <nav id="paginationContainer" class="pagination-wrapper hidden">
         <button id="prevPageBtn" class="btn btn-outline btn-sm" onclick="app.changePage(-1)">

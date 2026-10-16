@@ -13,6 +13,9 @@ class AdminApp {
     this.adminUsername = '';
     this.selectedCSVFile = null;
     this.adminCurrentPage = 1;
+    this.adminLimit = 50;
+    this.adminTotalPages = 1;
+    this.adminTotalRecords = 0;
     this.adminSearchQuery = '';
     this.adminStatusFilter = 'all'; // 'all', 'active', 'non-active'
     this.adminFilters = {}; // { Zone, Forane, Blood Group }
@@ -217,8 +220,8 @@ class AdminApp {
 
     try {
       const queryParams = new URLSearchParams({
-        page: 1,
-        limit: 'all',
+        page: this.adminCurrentPage,
+        limit: this.adminLimit,
         q: this.adminSearchQuery,
         statusFilter: this.adminStatusFilter
       });
@@ -298,6 +301,8 @@ class AdminApp {
       tableBody.innerHTML = '';
       this.adminRecordsMap = {};
 
+      const startIdx = (this.adminCurrentPage - 1) * this.adminLimit;
+
       records.forEach((row, idx) => {
         this.adminRecordsMap[row.id] = row.data;
         const tr = document.createElement('tr');
@@ -305,8 +310,8 @@ class AdminApp {
         let statusStyle = row.isActive ? 'color:#16a34a; font-weight:700;' : 'color:#dc2626; font-weight:700;';
 
         let rowHtml = `
-          <td><input type="checkbox" class="row-checkbox" value="${row.id}" onchange="adminApp.toggleRowSelect(${row.id}, this.checked)"></td>
-          <td>${idx + 1}</td>
+          <td><input type="checkbox" class="row-checkbox" value="${this.escapeHtml(row.id.toString())}"></td>
+          <td>${startIdx + idx + 1}</td>
           <td><span style="${statusStyle}">${this.escapeHtml(row.statusBadge || 'Active')}</span></td>
         `;
 
@@ -320,7 +325,7 @@ class AdminApp {
           rowHtml += `
             <td style="text-align:right;">
               <div class="action-btns" style="justify-content:flex-end;">
-                <button class="btn-icon btn-icon-donate" title="Restore Soft-Deleted Record" onclick="adminApp.restoreRecord(${row.id})">♻️ Restore</button>
+                <button class="btn-icon btn-icon-donate btn-restore" title="Restore Soft-Deleted Record">♻️ Restore</button>
               </div>
             </td>
           `;
@@ -328,22 +333,61 @@ class AdminApp {
           rowHtml += `
             <td style="text-align:right;">
               <div class="action-btns" style="justify-content:flex-end;">
-                <button class="btn-icon btn-icon-donate" title="Mark Blood Donation Completed" onclick="adminApp.markRecordDonated(${row.id})">🩸 Donated</button>
-                <button class="btn-icon" title="Edit Record" onclick="adminApp.openEditRecordModal(${row.id})">✏️ Edit</button>
-                <button class="btn-icon btn-icon-danger" title="Delete Record" onclick="adminApp.confirmDeleteRecord(${row.id})">🗑️ Delete</button>
+                <button class="btn-icon btn-icon-donate btn-donated" title="Mark Blood Donation Completed">🩸 Donated</button>
+                <button class="btn-icon btn-edit" title="Edit Record">✏️ Edit</button>
+                <button class="btn-icon btn-icon-danger btn-delete" title="Delete Record">🗑️ Delete</button>
               </div>
             </td>
           `;
         }
 
         tr.innerHTML = rowHtml;
+
+        const checkbox = tr.querySelector('.row-checkbox');
+        if (checkbox) {
+          checkbox.addEventListener('change', (e) => this.toggleRowSelect(row.id, e.target.checked));
+        }
+
+        const restoreBtn = tr.querySelector('.btn-restore');
+        if (restoreBtn) {
+          restoreBtn.addEventListener('click', () => this.restoreRecord(row.id));
+        }
+
+        const donatedBtn = tr.querySelector('.btn-donated');
+        if (donatedBtn) {
+          donatedBtn.addEventListener('click', () => this.markRecordDonated(row.id));
+        }
+
+        const editBtn = tr.querySelector('.btn-edit');
+        if (editBtn) {
+          editBtn.addEventListener('click', () => this.openEditRecordModal(row.id));
+        }
+
+        const deleteBtn = tr.querySelector('.btn-delete');
+        if (deleteBtn) {
+          deleteBtn.addEventListener('click', () => this.confirmDeleteRecord(row.id));
+        }
+
         tableBody.appendChild(tr);
       });
 
-      const pag = data.pagination;
-      if (indicator) indicator.textContent = `Displaying all ${pag.totalRecords} donor records on a single page`;
-      if (prevBtn) prevBtn.style.display = 'none';
-      if (nextBtn) nextBtn.style.display = 'none';
+      const pag = data.pagination || {};
+      this.adminTotalPages = pag.totalPages || 1;
+      this.adminTotalRecords = pag.totalRecords || 0;
+      const fromCount = records.length > 0 ? (startIdx + 1) : 0;
+      const toCount = startIdx + records.length;
+
+      if (indicator) {
+        indicator.textContent = `Showing ${fromCount} - ${toCount} of ${this.adminTotalRecords} records (Page ${this.adminCurrentPage} of ${this.adminTotalPages})`;
+      }
+      if (prevBtn) {
+        prevBtn.disabled = this.adminCurrentPage <= 1;
+        prevBtn.style.display = 'inline-flex';
+      }
+      if (nextBtn) {
+        nextBtn.disabled = this.adminCurrentPage >= this.adminTotalPages;
+        nextBtn.style.display = 'inline-flex';
+      }
 
     } catch (err) {
       console.error('Failed to load admin table:', err);
@@ -389,7 +433,7 @@ class AdminApp {
 
     checkboxes.forEach(cb => {
       cb.checked = isChecked;
-      const id = parseInt(cb.value, 10);
+      const id = cb.value;
       if (isChecked) {
         this.selectedRecordIds.add(id);
       } else {
@@ -576,7 +620,17 @@ class AdminApp {
   }
 
   changeAdminPage(delta) {
-    this.adminCurrentPage += delta;
+    const targetPage = this.adminCurrentPage + delta;
+    if (targetPage >= 1 && targetPage <= this.adminTotalPages) {
+      this.adminCurrentPage = targetPage;
+      this.loadAdminTable();
+      window.scrollTo({ top: 350, behavior: 'smooth' });
+    }
+  }
+
+  changePageSize(newSize) {
+    this.adminLimit = parseInt(newSize, 10) || 50;
+    this.adminCurrentPage = 1;
     this.loadAdminTable();
   }
 
@@ -688,6 +742,57 @@ class AdminApp {
     title.textContent = 'Add New Record';
 
     const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Blood Group', 'Zone', 'Forane', 'Phone', 'Age', 'Availability'];
+
+    fieldsContainer.innerHTML = '';
+    columns.forEach(col => {
+      const group = document.createElement('div');
+      group.className = 'form-group';
+
+      const label = document.createElement('label');
+      label.textContent = col;
+
+      let input;
+      if (/blood|group|bg/i.test(col)) {
+        input = document.createElement('select');
+        const defaultOpts = ['', 'A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'];
+        defaultOpts.forEach(bg => {
+          const opt = document.createElement('option');
+          opt.value = bg;
+          opt.textContent = bg || `-- Select ${col} --`;
+          input.appendChild(opt);
+        });
+      } else if (/date|donation|last/i.test(col)) {
+        input = document.createElement('input');
+        input.type = 'date';
+        input.max = new Date().toISOString().split('T')[0];
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = `Enter ${col}`;
+      }
+
+      input.name = col;
+      group.appendChild(label);
+      group.appendChild(input);
+      fieldsContainer.appendChild(group);
+    });
+
+    modal.classList.remove('hidden');
+  }
+
+  openAddRecordModal() {
+    const modal = document.getElementById('editRecordModal');
+    const title = document.getElementById('editModalTitle');
+    const idInput = document.getElementById('editRecordId');
+    const fieldsContainer = document.getElementById('dynamicFormFields');
+    const alertEl = document.getElementById('editRecordAlert');
+
+    if (!modal) return;
+    alertEl.classList.add('hidden');
+    idInput.value = '';
+    title.textContent = '➕ Add New Donor Record';
+
+    const columns = this.schema.columns && this.schema.columns.length > 0 ? this.schema.columns : ['Name', 'Phone', 'District', 'Blood Group'];
 
     fieldsContainer.innerHTML = '';
     columns.forEach(col => {

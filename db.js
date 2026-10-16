@@ -31,12 +31,28 @@ const userSchema = new mongoose.Schema({
   deleted_at: { type: Date, default: null }
 }, { timestamps: true });
 
+// Indexes on User for high-throughput authentication & lookup
+userSchema.index({ google_id: 1 });
+userSchema.index({ phone: 1 });
+userSchema.index({ deleted_at: 1 });
+userSchema.index({ is_available: 1, deleted_at: 1 });
+
 // Flexible CSV/Dynamic Blood Donor Records Schema
 const dataRecordSchema = new mongoose.Schema({
   data: { type: mongoose.Schema.Types.Mixed, required: true },
   search_text: { type: String, default: '' },
   deleted_at: { type: Date, default: null }
 }, { timestamps: true });
+
+// Performance Indexes for MongoDB fast search & lazy loading
+dataRecordSchema.index({ deleted_at: 1, createdAt: -1 });
+dataRecordSchema.index({ deleted_at: 1, createdAt: 1 });
+dataRecordSchema.index({ deleted_at: 1, search_text: 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Blood Group': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Zone': 1 });
+dataRecordSchema.index({ deleted_at: 1, 'data.Forane': 1 });
+dataRecordSchema.index({ 'data.Email': 1 });
+dataRecordSchema.index({ 'data.Phone': 1, 'data.Name': 1 });
 
 // Schema Metadata
 const dataSchemaSchema = new mongoose.Schema({
@@ -77,12 +93,24 @@ async function initDb() {
 
   if (!cached.promise) {
     const opts = {
-      bufferCommands: false
+      bufferCommands: false,
+      maxPoolSize: 20,
+      minPoolSize: 2,
+      maxIdleTimeMS: 30000,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4 // Use IPv4 first to avoid slow DNS resolution
     };
 
-    console.log('Connecting to MongoDB database...');
+    console.log('Connecting to MongoDB database with optimized pool...');
     cached.promise = mongoose.connect(mongoURI, opts).then((mongooseInstance) => {
       console.log('MongoDB connection established successfully.');
+      // Ensure indexes in background
+      Promise.all([
+        DataRecord.createIndexes(),
+        User.createIndexes(),
+        AdminUser.createIndexes()
+      ]).catch(idxErr => console.warn('Index verification notice:', idxErr.message));
       return mongooseInstance;
     });
   }
@@ -94,16 +122,16 @@ async function initDb() {
     throw e;
   }
 
-  // Seed / update default admin user
+  // Seed / update default admin user (optimized without redundant bcrypt hashing)
   try {
     const defaultUsername = 'smymChry@blood';
     const defaultPassword = 'QPeIogcNhsGy8f9n';
-    const salt = await bcrypt.genSalt(10);
-    const hash = await bcrypt.hash(defaultPassword, salt);
 
     let admin = await AdminUser.findOne({ username: defaultUsername.toLowerCase() });
     if (!admin) {
       const firstAdmin = await AdminUser.findOne();
+      const salt = await bcrypt.genSalt(10);
+      const hash = await bcrypt.hash(defaultPassword, salt);
       if (firstAdmin) {
         firstAdmin.username = defaultUsername;
         firstAdmin.password_hash = hash;
@@ -117,9 +145,13 @@ async function initDb() {
         console.log(`Default admin user seeded: ${defaultUsername}`);
       }
     } else {
-      admin.password_hash = hash;
-      await admin.save();
-      console.log(`Admin user password updated for: ${defaultUsername}`);
+      const isMatch = await bcrypt.compare(defaultPassword, admin.password_hash);
+      if (!isMatch) {
+        const salt = await bcrypt.genSalt(10);
+        admin.password_hash = await bcrypt.hash(defaultPassword, salt);
+        await admin.save();
+        console.log(`Admin user password updated for: ${defaultUsername}`);
+      }
     }
   } catch (seedErr) {
     console.error('Admin seed check error:', seedErr);

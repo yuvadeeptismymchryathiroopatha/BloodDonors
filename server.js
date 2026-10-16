@@ -83,10 +83,56 @@ function requireUser(req, res, next) {
   return res.status(401).json({ success: false, error: 'Unauthorized. Please sign in.' });
 }
 
+// ----------------- IN-MEMORY CACHE & METADATA -----------------
+let schemaCache = null;
+let schemaCacheExpiry = 0;
+const SCHEMA_CACHE_TTL = 120 * 1000; // 2 minutes
+
+function invalidateSchemaCache() {
+  schemaCache = null;
+  schemaCacheExpiry = 0;
+}
+
+async function getSchemaMetadataCached() {
+  const now = Date.now();
+  if (schemaCache && now < schemaCacheExpiry) {
+    return schemaCache;
+  }
+  const schemaDoc = await DataSchema.findOne().sort({ _id: -1 }).lean();
+  if (!schemaDoc) {
+    schemaCache = {
+      columns: [],
+      filterableOptions: {},
+      totalRecords: 0,
+      uploadedAt: null
+    };
+  } else {
+    schemaCache = {
+      columns: schemaDoc.columns || [],
+      filterableOptions: schemaDoc.filterable_options || {},
+      totalRecords: schemaDoc.total_records || 0,
+      uploadedAt: schemaDoc.uploaded_at
+    };
+  }
+  schemaCacheExpiry = now + SCHEMA_CACHE_TTL;
+  return schemaCache;
+}
+
+let analyticsCache = null;
+let analyticsCacheExpiry = 0;
+const ANALYTICS_CACHE_TTL = 30 * 1000; // 30 seconds
+
+function invalidateAnalyticsCache() {
+  analyticsCache = null;
+  analyticsCacheExpiry = 0;
+}
+
 async function refreshSchemaMetadata() {
-  const allRecords = await DataRecord.find({ deleted_at: null });
+  // Query only data field with lean() to eliminate Mongoose model overhead
+  const allRecords = await DataRecord.find({ deleted_at: null }, { data: 1 }).lean();
   if (allRecords.length === 0) {
     await DataSchema.deleteMany({});
+    invalidateSchemaCache();
     return { columns: [], filterableOptions: {}, totalRecords: 0 };
   }
 
@@ -122,7 +168,11 @@ async function refreshSchemaMetadata() {
     uploaded_at: new Date()
   });
 
-  return { columns, filterableOptions, totalRecords: allRecords.length };
+  const result = { columns, filterableOptions, totalRecords: allRecords.length, uploadedAt: new Date() };
+  schemaCache = result;
+  schemaCacheExpiry = Date.now() + SCHEMA_CACHE_TTL;
+  invalidateAnalyticsCache();
+  return result;
 }
 
 function calculateAgeFromDob(dobStr) {
@@ -167,7 +217,7 @@ function getZoneFromForane(forane) {
 // SYNC USER PROFILE TO PUBLIC DATA_RECORDS TABLE
 async function syncUserProfileToDataRecords(userId) {
   try {
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean();
     if (!user || !user.name || !user.phone) return;
 
     let computedAge = user.age;
@@ -213,9 +263,11 @@ async function syncUserProfileToDataRecords(userId) {
         search_text: searchText,
         deleted_at: null
       });
+      await DataSchema.updateOne({}, { $inc: { total_records: 1 } });
     }
 
-    await refreshSchemaMetadata();
+    invalidateSchemaCache();
+    invalidateAnalyticsCache();
   } catch (err) {
     console.error('Error syncing user profile to data_records:', err);
   }
@@ -224,7 +276,7 @@ async function syncUserProfileToDataRecords(userId) {
 // SYNC ALL REGISTERED USERS TO PUBLIC DATA_RECORDS TABLE
 async function syncAllUsersToDataRecords() {
   try {
-    const users = await User.find({ deleted_at: null });
+    const users = await User.find({ deleted_at: null }).lean();
     for (const u of users) {
       if (u.name && u.phone) {
         await syncUserProfileToDataRecords(u._id);
@@ -294,6 +346,10 @@ app.post('/api/auth/google', async (req, res) => {
       if (!user.picture && picture) { user.picture = picture; updated = true; }
       if (!user.name && name) { user.name = name; updated = true; }
       if (updated) await user.save();
+    }
+
+    if (user.name && user.phone) {
+      syncUserProfileToDataRecords(user._id).catch(err => console.warn('Sync profile on Google login notice:', err.message));
     }
 
     req.session.user = {
@@ -786,7 +842,9 @@ app.post('/api/admin/change-credentials', requireAdmin, async (req, res) => {
 app.get('/api/admin/records', requireAdmin, async (req, res) => {
   try {
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = (req.query.limit === 'all' || !req.query.limit) ? 100000 : Math.min(100000, Math.max(1, parseInt(req.query.limit, 10) || 100000));
+    const limit = (req.query.limit === 'all') 
+      ? 10000 
+      : Math.min(500, Math.max(1, parseInt(req.query.limit, 10) || 50));
     const q = req.query.q ? req.query.q.trim() : '';
     const statusFilter = req.query.statusFilter || 'all';
 
@@ -797,7 +855,31 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       filterQuery.deleted_at = null;
     }
 
-    const allRecordsDocs = await DataRecord.find(filterQuery).sort({ createdAt: -1 });
+    if (q) {
+      filterQuery.search_text = { $regex: q, $options: 'i' };
+    }
+
+    const filtersParam = req.query.filters;
+    let filters = {};
+    if (filtersParam) {
+      try {
+        filters = typeof filtersParam === 'string' ? JSON.parse(filtersParam) : filtersParam;
+      } catch (e) {}
+    }
+
+    if (filters && typeof filters === 'object' && Object.keys(filters).length > 0) {
+      Object.entries(filters).forEach(([col, targetVal]) => {
+        if (targetVal) {
+          filterQuery[`data.${col}`] = { $regex: `^${targetVal}$`, $options: 'i' };
+        }
+      });
+    }
+
+    // High performance indexed MongoDB query using lean()
+    const allRecordsDocs = await DataRecord.find(filterQuery)
+      .sort({ createdAt: -1 })
+      .lean();
+
     const now = new Date();
 
     let records = allRecordsDocs.map(doc => {
@@ -836,7 +918,7 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
         statusBadge = `🗑️ Soft Deleted (${daysRemaining} Days Until Auto-Purge)`;
       } else if (!isAgeEligible) {
         status = 'Non-Active';
-        statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
+        statusBadge = `🔴 Ineligible Age (${rec[ageKey] || 'N/A'})`;
       } else if (isCoolingPeriod) {
         status = 'Non-Active';
         statusBadge = `🟡 Donated (< 90 Days)`;
@@ -854,33 +936,10 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
       };
     });
 
-    if (q) {
-      records = records.filter(r => (r.search_text || '').toLowerCase().includes(q.toLowerCase()));
-    }
-
     if (statusFilter === 'active') {
       records = records.filter(r => r.isActive);
     } else if (statusFilter === 'non-active') {
       records = records.filter(r => !r.isActive);
-    }
-
-    const filtersParam = req.query.filters;
-    let filters = {};
-    if (filtersParam) {
-      try {
-        filters = JSON.parse(filtersParam);
-      } catch (e) {}
-    }
-
-    if (Object.keys(filters).length > 0) {
-      records = records.filter(r => {
-        return Object.entries(filters).every(([col, targetVal]) => {
-          if (!targetVal) return true;
-          const matchingKey = Object.keys(r.data).find(k => k.toLowerCase().trim() === col.toLowerCase().trim());
-          if (!matchingKey) return true;
-          return (r.data[matchingKey] || '').toString().toLowerCase().trim() === targetVal.toString().toLowerCase().trim();
-        });
-      });
     }
 
     const totalRecords = records.length;
@@ -896,7 +955,8 @@ app.get('/api/admin/records', requireAdmin, async (req, res) => {
         page,
         limit,
         totalRecords,
-        totalPages: Math.ceil(totalRecords / limit) || 1
+        totalPages: Math.ceil(totalRecords / limit) || 1,
+        hasMore: (offset + paginatedRecords.length) < totalRecords
       }
     });
   } catch (err) {
@@ -934,7 +994,7 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
     doc.search_text = searchTextParts.join(' | ');
 
     await doc.save();
-    await refreshSchemaMetadata();
+    invalidateAnalyticsCache();
 
     return res.json({
       success: true,
@@ -950,8 +1010,15 @@ app.post('/api/admin/records/:id/mark-donated', requireAdmin, async (req, res) =
 // GET ADMIN ANALYTICS
 app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   try {
-    const activeDocs = await DataRecord.find({ deleted_at: null });
-    const trashCount = await DataRecord.countDocuments({ deleted_at: { $ne: null } });
+    if (analyticsCache && Date.now() < analyticsCacheExpiry) {
+      return res.json(analyticsCache);
+    }
+
+    const [activeDocs, trashCount] = await Promise.all([
+      DataRecord.find({ deleted_at: null }, { data: 1 }).lean(),
+      DataRecord.countDocuments({ deleted_at: { $ne: null } })
+    ]);
+
     const records = activeDocs.map(r => r.data || {});
 
     const totalRecords = records.length;
@@ -1003,7 +1070,7 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
 
     const nonActiveCount = totalRecords - eligibleCount;
 
-    return res.json({
+    const result = {
       success: true,
       totalRecords,
       trashCount,
@@ -1014,7 +1081,12 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
       byZone,
       byForona,
       byBloodGroup
-    });
+    };
+
+    analyticsCache = result;
+    analyticsCacheExpiry = Date.now() + ANALYTICS_CACHE_TTL;
+
+    return res.json(result);
   } catch (err) {
     console.error('Fetch analytics error:', err);
     return res.status(500).json({ success: false, error: 'Failed to generate analytics.' });
@@ -1301,22 +1373,13 @@ app.post('/api/admin/clear-data', requireAdmin, async (req, res) => {
 
 app.get('/api/schema', async (req, res) => {
   try {
-    const schemaDoc = await DataSchema.findOne().sort({ _id: -1 });
-    if (!schemaDoc) {
-      return res.json({
-        success: true,
-        columns: [],
-        filterableOptions: {},
-        totalRecords: 0
-      });
-    }
-
+    const schemaDoc = await getSchemaMetadataCached();
     return res.json({
       success: true,
       columns: schemaDoc.columns || [],
-      filterableOptions: schemaDoc.filterable_options || {},
-      totalRecords: schemaDoc.total_records || 0,
-      uploadedAt: schemaDoc.uploaded_at
+      filterableOptions: schemaDoc.filterableOptions || {},
+      totalRecords: schemaDoc.totalRecords || 0,
+      uploadedAt: schemaDoc.uploadedAt
     });
   } catch (err) {
     console.error('Fetch schema error:', err);
@@ -1324,14 +1387,12 @@ app.get('/api/schema', async (req, res) => {
   }
 });
 
-// PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Cooling Period of 90 days)
+// PUBLIC SEARCH ROUTE (Enforces Age 18-55 and Cooling Period of 90 days) - OPTIMIZED FOR MONGO & LAZY LOADING
 app.get('/api/search', async (req, res) => {
   try {
-    await syncAllUsersToDataRecords();
-
     const queryStr = req.query.q ? req.query.q.toString().trim() : '';
     const page = Math.max(1, parseInt(req.query.page, 10) || 1);
-    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 12));
 
     let filterParams = {};
     if (req.query.filters) {
@@ -1342,7 +1403,7 @@ app.get('/api/search', async (req, res) => {
       }
     }
 
-    const schemaDoc = await DataSchema.findOne().sort({ _id: -1 });
+    const schemaDoc = await getSchemaMetadataCached();
     const existingColumns = (schemaDoc && schemaDoc.columns) ? schemaDoc.columns : [];
 
     let mongoQuery = { deleted_at: null };
@@ -1370,10 +1431,12 @@ app.get('/api/search', async (req, res) => {
     const totalRecords = await DataRecord.countDocuments(mongoQuery);
     const offset = (page - 1) * limit;
 
+    // Use indexed query with .lean() for maximum throughput
     const docs = await DataRecord.find(mongoQuery)
       .sort({ createdAt: 1 })
       .skip(offset)
-      .limit(limit);
+      .limit(limit)
+      .lean();
 
     const now = new Date();
 
@@ -1410,7 +1473,7 @@ app.get('/api/search', async (req, res) => {
       let statusBadge = '🟢 Available to Donate';
 
       if (!isAgeEligible) {
-        statusBadge = `🔴 Ineligible Age (${rec[ageKey]})`;
+        statusBadge = `🔴 Ineligible Age (${rec[ageKey] || 'N/A'})`;
       } else if (isMarkedUnavailable) {
         statusBadge = `🔴 Unavailable for Donation`;
         rec['Availability Status'] = 'Unavailable';
@@ -1429,6 +1492,7 @@ app.get('/api/search', async (req, res) => {
     });
 
     const totalPages = Math.ceil(totalRecords / limit) || 1;
+    const hasMore = (offset + docs.length) < totalRecords;
 
     return res.json({
       success: true,
@@ -1437,7 +1501,8 @@ app.get('/api/search', async (req, res) => {
         page,
         limit,
         totalRecords,
-        totalPages
+        totalPages,
+        hasMore
       }
     });
   } catch (err) {
@@ -1497,6 +1562,12 @@ if (require.main === module) {
     .then(() => {
       purgeOldSoftDeletedRecords();
       setInterval(purgeOldSoftDeletedRecords, 24 * 60 * 60 * 1000);
+
+      // Background synchronization of registered users without blocking requests
+      syncAllUsersToDataRecords()
+        .then(() => console.log('Background donor sync verified.'))
+        .catch(e => console.warn('Background donor sync notice:', e.message));
+
       app.listen(PORT, () => {
         console.log(`Server running locally at http://localhost:${PORT}`);
       });
