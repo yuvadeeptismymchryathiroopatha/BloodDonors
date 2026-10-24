@@ -128,7 +128,7 @@ async function initDb() {
   // Seed / update default admin user (optimized without redundant bcrypt hashing)
   try {
     const defaultUsername = 'smymChry@blood';
-    const defaultPassword = 'QPeIogcNhsGy8f9n';
+    const defaultPassword = "It'sAdmin@2026";
 
     let admin = await AdminUser.findOne({ username: defaultUsername.toLowerCase() });
     if (!admin) {

@@ -6,6 +6,8 @@
   const STORAGE_KEY = 'ybf-theme';
   const LOGO_LIGHT = 'images/logo-light.png';
   const LOGO_DARK = 'images/logo-dark.png';
+  const SPONSOR_LOGO_LIGHT = 'images/STH-LOGO-light.svg';
+  const SPONSOR_LOGO_DARK = 'images/STH-LOGO-dark.svg';
 
   function getPreferredTheme() {
     const saved = localStorage.getItem(STORAGE_KEY);
@@ -17,6 +19,10 @@
     const src = theme === 'dark' ? LOGO_DARK : LOGO_LIGHT;
     document.querySelectorAll('[data-site-logo]').forEach((img) => {
       if (img.getAttribute('src') !== src) img.setAttribute('src', src);
+    });
+    const sponsorSrc = theme === 'dark' ? SPONSOR_LOGO_DARK : SPONSOR_LOGO_LIGHT;
+    document.querySelectorAll('[data-sponsor-logo]').forEach((img) => {
+      if (img.getAttribute('src') !== sponsorSrc) img.setAttribute('src', sponsorSrc);
     });
     document.querySelectorAll('link[rel="icon"]').forEach((link) => {
       link.setAttribute('href', src);
