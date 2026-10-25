@@ -416,6 +416,80 @@ body {
   filter: brightness(1.05);
 }
 
+/* —— Dedicated Profile Button (Vibrant Red Theme in Light & Dark Mode) —— */
+.btn-nav-profile,
+.btn-profile,
+a[href="profile.html"].btn,
+.nav-actions a[href="profile.html"] {
+  background: linear-gradient(160deg, #e6353c 0%, var(--primary) 55%, #a8181e 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(220, 38, 38, 0.4) !important;
+  box-shadow: 0 4px 14px rgba(var(--primary-rgb), 0.35) !important;
+  font-weight: 700;
+}
+
+.btn-nav-profile span,
+.btn-profile span,
+a[href="profile.html"].btn span {
+  color: #ffffff !important;
+}
+
+.btn-nav-profile svg,
+.btn-profile svg,
+a[href="profile.html"].btn svg,
+.nav-actions a[href="profile.html"] svg {
+  stroke: #ffffff !important;
+  color: #ffffff !important;
+}
+
+.btn-nav-profile:hover,
+.btn-profile:hover,
+a[href="profile.html"].btn:hover,
+.nav-actions a[href="profile.html"]:hover {
+  background: linear-gradient(160deg, #f03e45 0%, #db2830 55%, #b91c1c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 8px 20px rgba(var(--primary-rgb), 0.45) !important;
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+}
+
+.btn-nav-profile:active,
+.btn-profile:active,
+a[href="profile.html"].btn:active {
+  transform: scale(0.96);
+}
+
+[data-theme="dark"] .btn-nav-profile,
+[data-theme="dark"] .btn-profile,
+[data-theme="dark"] a[href="profile.html"].btn,
+[data-theme="dark"] .nav-actions a[href="profile.html"] {
+  background: linear-gradient(160deg, #ff5a60 0%, var(--primary) 60%, #c42a30 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 90, 96, 0.45) !important;
+  box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4) !important;
+}
+
+[data-theme="dark"] .btn-nav-profile:hover,
+[data-theme="dark"] .btn-profile:hover,
+[data-theme="dark"] a[href="profile.html"].btn:hover,
+[data-theme="dark"] .nav-actions a[href="profile.html"]:hover {
+  background: linear-gradient(160deg, #ff6b70 0%, #e6353c 60%, #d32f2f 100%) !important;
+  box-shadow: 0 8px 22px rgba(255, 90, 96, 0.55) !important;
+  filter: brightness(1.12);
+  color: #ffffff !important;
+}
+
+.btn-create-profile {
+  border-color: var(--primary) !important;
+  color: var(--primary) !important;
+  font-weight: 700;
+}
+
+.btn-create-profile:hover {
+  background: var(--primary) !important;
+  color: #ffffff !important;
+}
+
 .btn-outline {
   background: var(--bg-elevated);
   border-color: var(--border-color);
