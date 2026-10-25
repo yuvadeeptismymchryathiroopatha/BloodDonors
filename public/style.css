@@ -490,6 +490,64 @@ a[href="profile.html"].btn:active {
   color: #ffffff !important;
 }
 
+/* —— Dedicated WhatsApp Button Theme (Official WhatsApp Green in Light & Dark Mode) —— */
+.btn-whatsapp,
+a[href*="wa.me"].btn,
+a[href*="whatsapp.com"].btn {
+  background: linear-gradient(160deg, #25D366 0%, #20ba5a 55%, #128c7e 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(18, 140, 126, 0.4) !important;
+  box-shadow: 0 3px 12px rgba(37, 211, 102, 0.32) !important;
+  font-weight: 700 !important;
+}
+
+.btn-whatsapp span,
+a[href*="wa.me"].btn span,
+a[href*="whatsapp.com"].btn span {
+  color: #ffffff !important;
+}
+
+.btn-whatsapp svg,
+a[href*="wa.me"].btn svg,
+a[href*="whatsapp.com"].btn svg {
+  fill: #ffffff !important;
+  color: #ffffff !important;
+}
+
+.btn-whatsapp:hover,
+a[href*="wa.me"].btn:hover,
+a[href*="whatsapp.com"].btn:hover {
+  background: linear-gradient(160deg, #2ae26f 0%, #24cc63 55%, #159b8c 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 18px rgba(37, 211, 102, 0.45) !important;
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.btn-whatsapp:active,
+a[href*="wa.me"].btn:active,
+a[href*="whatsapp.com"].btn:active {
+  transform: scale(0.97);
+}
+
+[data-theme="dark"] .btn-whatsapp,
+[data-theme="dark"] a[href*="wa.me"].btn,
+[data-theme="dark"] a[href*="whatsapp.com"].btn {
+  background: linear-gradient(160deg, #28e06c 0%, #25D366 50%, #128c7e 100%) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(37, 211, 102, 0.45) !important;
+  box-shadow: 0 3px 14px rgba(37, 211, 102, 0.38) !important;
+}
+
+[data-theme="dark"] .btn-whatsapp:hover,
+[data-theme="dark"] a[href*="wa.me"].btn:hover,
+[data-theme="dark"] a[href*="whatsapp.com"].btn:hover {
+  background: linear-gradient(160deg, #38e878 0%, #2adb6e 50%, #16a090 100%) !important;
+  box-shadow: 0 6px 20px rgba(37, 211, 102, 0.55) !important;
+  filter: brightness(1.1);
+  color: #ffffff !important;
+}
+
 .btn-outline {
   background: var(--bg-elevated);
   border-color: var(--border-color);
