@@ -65,10 +65,31 @@ const dataSchemaSchema = new mongoose.Schema({
   uploaded_at: { type: Date, default: Date.now }
 });
 
+// Site Visitor Logs Schema for Traffic & Audience Analytics
+const visitorLogSchema = new mongoose.Schema({
+  visitor_id: { type: String, default: '', index: true },
+  session_id: { type: String, default: '', index: true },
+  ip: { type: String, default: '' },
+  path: { type: String, default: '/', index: true },
+  page_title: { type: String, default: '' },
+  referrer: { type: String, default: 'Direct' },
+  user_agent: { type: String, default: '' },
+  device_type: { type: String, enum: ['Mobile', 'Desktop', 'Tablet', 'Other'], default: 'Desktop' },
+  browser: { type: String, default: 'Unknown' },
+  os: { type: String, default: 'Unknown' },
+  screen_res: { type: String, default: '' },
+  visited_at: { type: Date, default: Date.now, index: true }
+}, { timestamps: true });
+
+visitorLogSchema.index({ visited_at: -1 });
+visitorLogSchema.index({ visitor_id: 1, visited_at: -1 });
+visitorLogSchema.index({ path: 1, visited_at: -1 });
+
 const AdminUser = mongoose.models.AdminUser || mongoose.model('AdminUser', adminUserSchema);
 const User = mongoose.models.User || mongoose.model('User', userSchema);
 const DataRecord = mongoose.models.DataRecord || mongoose.model('DataRecord', dataRecordSchema);
 const DataSchema = mongoose.models.DataSchema || mongoose.model('DataSchema', dataSchemaSchema);
+const VisitorLog = mongoose.models.VisitorLog || mongoose.model('VisitorLog', visitorLogSchema);
 
 // Vercel / Serverless MongoDB Connection Caching
 let cached = global.mongoose;
@@ -112,7 +133,8 @@ async function initDb() {
       Promise.all([
         DataRecord.createIndexes(),
         User.createIndexes(),
-        AdminUser.createIndexes()
+        AdminUser.createIndexes(),
+        VisitorLog.createIndexes()
       ]).catch(idxErr => console.warn('Index verification notice:', idxErr.message));
       return mongooseInstance;
     });
@@ -169,5 +191,6 @@ module.exports = {
   AdminUser,
   User,
   DataRecord,
-  DataSchema
+  DataSchema,
+  VisitorLog
 };

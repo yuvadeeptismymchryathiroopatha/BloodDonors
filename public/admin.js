@@ -23,6 +23,10 @@ class AdminApp {
     this.currentFilteredRecordIds = [];
     this.adminRecordsMap = {};
     this.selectedRecordIds = new Set();
+    this.visitorTimeframe = 'all';
+    this.visitorCurrentPage = 1;
+    this.visitorLimit = 25;
+    this.visitorTotalPages = 1;
 
     this.init();
   }
@@ -71,6 +75,7 @@ class AdminApp {
         this.adminUsername = data.username;
         this.updateAdminUI(true);
         this.loadAdminTable();
+        this.loadVisitorTopStats();
       } else {
         this.isAdminLoggedIn = false;
         this.updateAdminUI(false);
@@ -132,16 +137,18 @@ class AdminApp {
   switchTab(tabName) {
     const tableBtn = document.getElementById('tabTableBtn');
     const analyticsBtn = document.getElementById('tabAnalyticsBtn');
+    const visitorsBtn = document.getElementById('tabVisitorsBtn');
     const uploadBtn = document.getElementById('tabUploadBtn');
     const settingsBtn = document.getElementById('tabSettingsBtn');
 
     const tableTab = document.getElementById('tabTable');
     const analyticsTab = document.getElementById('tabAnalytics');
+    const visitorsTab = document.getElementById('tabVisitors');
     const uploadTab = document.getElementById('tabUpload');
     const settingsTab = document.getElementById('tabSettings');
 
-    [tableBtn, analyticsBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
-    [tableTab, analyticsTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
+    [tableBtn, analyticsBtn, visitorsBtn, uploadBtn, settingsBtn].forEach(b => b?.classList.remove('active'));
+    [tableTab, analyticsTab, visitorsTab, uploadTab, settingsTab].forEach(t => t?.classList.add('hidden'));
 
     if (tabName === 'table') {
       tableBtn?.classList.add('active');
@@ -151,6 +158,10 @@ class AdminApp {
       analyticsBtn?.classList.add('active');
       analyticsTab?.classList.remove('hidden');
       this.loadAnalytics();
+    } else if (tabName === 'visitors') {
+      visitorsBtn?.classList.add('active');
+      visitorsTab?.classList.remove('hidden');
+      this.loadVisitorStats();
     } else if (tabName === 'upload') {
       uploadBtn?.classList.add('active');
       uploadTab?.classList.remove('hidden');
@@ -191,6 +202,7 @@ class AdminApp {
         passwordInput.value = '';
         await this.loadSchema();
         await this.loadAdminTable();
+        this.loadVisitorTopStats();
       } else {
         errorEl.textContent = data.error || 'Invalid credentials.';
         errorEl.classList.remove('hidden');
@@ -736,6 +748,316 @@ class AdminApp {
 
     } catch (err) {
       console.error('Failed to load analytics:', err);
+    }
+  }
+
+  // --- SITE VISITOR ANALYTICS & LOGS ---
+
+  async loadVisitorTopStats() {
+    try {
+      const res = await fetch('/api/admin/visitors/stats?timeframe=all&limit=1');
+      const data = await res.json();
+      if (data.success && data.overview) {
+        const topTotalEl = document.getElementById('statTotalVisitors');
+        const topTodayEl = document.getElementById('statTodayVisitors');
+        if (topTotalEl) topTotalEl.textContent = (data.overview.totalVisits || 0).toLocaleString();
+        if (topTodayEl) topTodayEl.textContent = (data.overview.todayVisits || 0).toLocaleString();
+      }
+    } catch (e) {
+      console.warn('Visitor top stats notice:', e);
+    }
+  }
+
+  changeVisitorTimeframe(timeframe) {
+    this.visitorTimeframe = timeframe || 'all';
+    this.visitorCurrentPage = 1;
+    this.loadVisitorStats();
+  }
+
+  changeVisitorPage(delta) {
+    const target = this.visitorCurrentPage + delta;
+    if (target >= 1 && target <= this.visitorTotalPages) {
+      this.visitorCurrentPage = target;
+      this.loadVisitorStats();
+    }
+  }
+
+  changeVisitorLimit(limit) {
+    this.visitorLimit = parseInt(limit, 10) || 25;
+    this.visitorCurrentPage = 1;
+    this.loadVisitorStats();
+  }
+
+  async confirmClearVisitorLogs() {
+    const range = prompt('Choose logs to clear:\nType "all" for all logs\nType "30days" for older than 30 days\nType "90days" for older than 90 days', '30days');
+    if (!range || !['all', '30days', '90days'].includes(range.toLowerCase().trim())) {
+      return;
+    }
+
+    if (!confirm(`Are you sure you want to clear ${range} visitor logs? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/admin/visitors/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ range: range.toLowerCase().trim() })
+      });
+      const data = await res.json();
+      if (data.success) {
+        this.showToast(data.message || 'Visitor logs cleared!');
+        this.loadVisitorStats(true);
+      } else {
+        alert(data.error || 'Failed to clear logs.');
+      }
+    } catch (err) {
+      alert('Error clearing visitor logs.');
+    }
+  }
+
+  async loadVisitorStats(forceRefresh = false) {
+    if (!this.isAdminLoggedIn) return;
+
+    const totalEl = document.getElementById('statVisitorTotal');
+    const uniqueEl = document.getElementById('statVisitorUnique');
+    const todayEl = document.getElementById('statVisitorToday');
+    const todayUniqueEl = document.getElementById('statVisitorTodayUnique');
+    const weekEl = document.getElementById('statVisitorWeek');
+    const trendChartEl = document.getElementById('visitorTrendChart');
+    const topPagesEl = document.getElementById('visitorTopPagesList');
+    const deviceListEl = document.getElementById('visitorDeviceList');
+    const referrerListEl = document.getElementById('visitorReferrerList');
+    const browserGridEl = document.getElementById('visitorBrowserGrid');
+    const tableBody = document.getElementById('visitorLogTableBody');
+    const pageIndicator = document.getElementById('visitorPageIndicator');
+    const prevBtn = document.getElementById('visitorPrevBtn');
+    const nextBtn = document.getElementById('visitorNextBtn');
+
+    if (tableBody) {
+      tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem;">⏳ Loading visitor analytics...</td></tr>`;
+    }
+
+    try {
+      const queryParams = new URLSearchParams({
+        timeframe: this.visitorTimeframe,
+        page: this.visitorCurrentPage,
+        limit: this.visitorLimit
+      });
+
+      const res = await fetch(`/api/admin/visitors/stats?${queryParams.toString()}`);
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      // 1. Overview cards
+      const ov = data.overview || {};
+      if (totalEl) totalEl.textContent = (ov.totalVisits || 0).toLocaleString();
+      if (uniqueEl) uniqueEl.textContent = (ov.uniqueVisitors || 0).toLocaleString();
+      if (todayEl) todayEl.textContent = (ov.todayVisits || 0).toLocaleString();
+      if (todayUniqueEl) todayUniqueEl.textContent = (ov.todayUnique || 0).toLocaleString();
+      if (weekEl) weekEl.textContent = (ov.last7DaysVisits || 0).toLocaleString();
+
+      // Also update top header stat cards
+      const topTotalEl = document.getElementById('statTotalVisitors');
+      const topTodayEl = document.getElementById('statTodayVisitors');
+      if (topTotalEl) topTotalEl.textContent = (ov.totalVisits || 0).toLocaleString();
+      if (topTodayEl) topTodayEl.textContent = (ov.todayVisits || 0).toLocaleString();
+
+      // 2. Trend Bar Chart
+      if (trendChartEl && data.dailyTrend && data.dailyTrend.length > 0) {
+        trendChartEl.innerHTML = '';
+        const maxViews = Math.max(...data.dailyTrend.map(d => d.pageviews), 1);
+
+        const chartWrapper = document.createElement('div');
+        chartWrapper.className = 'trend-bars-wrapper';
+
+        data.dailyTrend.forEach(day => {
+          const heightPct = Math.max(12, Math.round((day.pageviews / maxViews) * 100));
+          const col = document.createElement('div');
+          col.className = 'trend-bar-column';
+          col.innerHTML = `
+            <div class="trend-bar-tooltip">
+              <strong>${this.escapeHtml(day.label)}</strong><br>
+              ${day.pageviews} visits &bull; ${day.unique} unique
+            </div>
+            <div class="trend-bar-track">
+              <div class="trend-bar-fill" style="height: ${heightPct}%;">
+                <span class="trend-bar-val">${day.pageviews > 0 ? day.pageviews : ''}</span>
+              </div>
+            </div>
+            <div class="trend-bar-label">${this.escapeHtml(day.label)}</div>
+          `;
+          chartWrapper.appendChild(col);
+        });
+
+        trendChartEl.appendChild(chartWrapper);
+      }
+
+      // 3. Top Pages
+      if (topPagesEl) {
+        topPagesEl.innerHTML = '';
+        if (!data.topPages || data.topPages.length === 0) {
+          topPagesEl.innerHTML = '<p class="text-muted" style="padding:0.75rem 0;">No pageviews recorded yet.</p>';
+        } else {
+          data.topPages.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'breakdown-item';
+            item.innerHTML = `
+              <div class="breakdown-label-row">
+                <span class="breakdown-label-path" title="${this.escapeHtml(p.path)}">${this.escapeHtml(p.label)}</span>
+                <span><strong>${p.count}</strong> views (${p.percentage}%)</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: ${p.percentage}%;"></div>
+              </div>
+            `;
+            topPagesEl.appendChild(item);
+          });
+        }
+      }
+
+      // 4. Device Breakdown
+      if (deviceListEl) {
+        deviceListEl.innerHTML = '';
+        if (!data.devices || data.devices.length === 0) {
+          deviceListEl.innerHTML = '<p class="text-muted" style="padding:0.75rem 0;">No device data.</p>';
+        } else {
+          const deviceIcons = {
+            'Mobile': '📱',
+            'Desktop': '💻',
+            'Tablet': '📟',
+            'Other': '🌐'
+          };
+          data.devices.forEach(d => {
+            const icon = deviceIcons[d.name] || '💻';
+            const item = document.createElement('div');
+            item.className = 'breakdown-item';
+            item.innerHTML = `
+              <div class="breakdown-label-row">
+                <span><span style="margin-right:0.35rem;">${icon}</span><strong>${this.escapeHtml(d.name)}</strong></span>
+                <span><strong>${d.count}</strong> (${d.percentage}%)</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: ${d.percentage}%;"></div>
+              </div>
+            `;
+            deviceListEl.appendChild(item);
+          });
+        }
+      }
+
+      // 5. Top Referrers
+      if (referrerListEl) {
+        referrerListEl.innerHTML = '';
+        if (!data.referrers || data.referrers.length === 0) {
+          referrerListEl.innerHTML = '<p class="text-muted" style="padding:0.75rem 0;">No referrer data.</p>';
+        } else {
+          data.referrers.forEach(r => {
+            const item = document.createElement('div');
+            item.className = 'breakdown-item';
+            item.innerHTML = `
+              <div class="breakdown-label-row">
+                <span>🧭 <strong>${this.escapeHtml(r.name)}</strong></span>
+                <span><strong>${r.count}</strong> (${r.percentage}%)</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" style="width: ${r.percentage}%;"></div>
+              </div>
+            `;
+            referrerListEl.appendChild(item);
+          });
+        }
+      }
+
+      // 6. Browsers & OS Pills
+      if (browserGridEl) {
+        browserGridEl.innerHTML = '';
+        const allItems = [
+          ...(data.browsers || []).map(b => ({ icon: '🌐', label: b.name, count: b.count })),
+          ...(data.operatingSystems || []).map(o => ({ icon: '💻', label: o.name, count: o.count }))
+        ];
+
+        if (allItems.length === 0) {
+          browserGridEl.innerHTML = '<p class="text-muted" style="grid-column: 1/-1;">No browser data recorded yet.</p>';
+        } else {
+          allItems.forEach(item => {
+            const pill = document.createElement('div');
+            pill.className = 'bg-stat-pill';
+            pill.innerHTML = `
+              <span class="bg-stat-type">${item.icon} ${this.escapeHtml(item.label)}</span>
+              <span class="bg-stat-count">${item.count}</span>
+            `;
+            browserGridEl.appendChild(pill);
+          });
+        }
+      }
+
+      // 7. Recent Activity Logs Table
+      if (tableBody) {
+        tableBody.innerHTML = '';
+        const logs = data.logs || [];
+        if (logs.length === 0) {
+          tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">No visitor activity recorded in this timeframe yet.</td></tr>`;
+        } else {
+          const deviceIcons = { 'Mobile': '📱', 'Desktop': '💻', 'Tablet': '📟', 'Other': '🌐' };
+          logs.forEach(log => {
+            const tr = document.createElement('tr');
+            const d = new Date(log.visitedAt);
+            const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const dateStr = d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+            const devIcon = deviceIcons[log.deviceType] || '💻';
+
+            let pageBadgeClass = 'badge-general';
+            if (log.path === '/' || log.path === '/index.html') pageBadgeClass = 'badge-home';
+            else if (log.path.includes('profile')) pageBadgeClass = 'badge-profile';
+            else if (log.path.includes('admin')) pageBadgeClass = 'badge-admin';
+
+            tr.innerHTML = `
+              <td>
+                <div style="font-weight: 600; font-size: 0.85rem;">${timeStr}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">${dateStr}</div>
+              </td>
+              <td>
+                <span class="visitor-page-badge ${pageBadgeClass}" title="${this.escapeHtml(log.path)}">${this.escapeHtml(log.path)}</span>
+              </td>
+              <td>
+                <span class="visitor-device-badge">
+                  <span>${devIcon}</span>
+                  <span>${this.escapeHtml(log.deviceType)}</span>
+                </span>
+              </td>
+              <td>
+                <div style="font-size: 0.85rem; font-weight: 600;">${this.escapeHtml(log.browser)}</div>
+                <div class="text-muted" style="font-size: 0.75rem;">${this.escapeHtml(log.os)}</div>
+              </td>
+              <td>
+                <span class="visitor-source-badge">${this.escapeHtml(log.referrer)}</span>
+              </td>
+              <td>
+                <code style="font-size: 0.8rem; background: var(--bg-subtle); padding: 0.15rem 0.4rem; border-radius: 4px; border: 1px solid var(--border-color);">${this.escapeHtml(log.ip)}</code>
+              </td>
+            `;
+            tableBody.appendChild(tr);
+          });
+        }
+      }
+
+      // 8. Pagination
+      const pagination = data.pagination || {};
+      this.visitorTotalPages = pagination.totalPages || 1;
+      this.visitorCurrentPage = pagination.page || 1;
+      if (pageIndicator) {
+        pageIndicator.textContent = `Page ${this.visitorCurrentPage} of ${this.visitorTotalPages} (${pagination.totalLogs || 0} total)`;
+      }
+      if (prevBtn) prevBtn.disabled = this.visitorCurrentPage <= 1;
+      if (nextBtn) nextBtn.disabled = this.visitorCurrentPage >= this.visitorTotalPages;
+
+    } catch (err) {
+      console.error('Failed to load visitor stats:', err);
+      if (tableBody) {
+        tableBody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding: 2rem; color: #dc2626;">Failed to load visitor data: ${this.escapeHtml(err.message)}</td></tr>`;
+      }
     }
   }
 

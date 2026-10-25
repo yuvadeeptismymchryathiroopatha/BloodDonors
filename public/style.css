@@ -271,9 +271,9 @@ body {
 }
 
 .nav-sponsor-logo {
-  height: 30px;
+  height: 26px;
   width: auto;
-  max-width: 130px;
+  max-width: 140px;
   object-fit: contain;
   display: block;
 }
@@ -583,7 +583,7 @@ body {
 }
 
 .hero-sponsor-logo {
-  height: 52px;
+  height: 44px;
   width: auto;
   max-width: 250px;
   object-fit: contain;
@@ -1373,7 +1373,7 @@ body {
 
 .analytics-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
   gap: 1.15rem;
   margin-bottom: 2rem;
 }
@@ -1782,7 +1782,7 @@ body {
 }
 
 .footer-sponsor-logo {
-  height: 54px;
+  height: 48px;
   width: auto;
   max-width: 270px;
   object-fit: contain;
@@ -2913,4 +2913,166 @@ body {
 .pagination-size-control {
   display: inline-flex;
   align-items: center;
+}
+
+/* ========================================================
+   VISITOR TRAFFIC & ACTIVITY ANALYTICS STYLES
+   ======================================================== */
+
+.visitor-trend-container {
+  padding: 1rem 0.5rem 0.5rem;
+  overflow-x: auto;
+}
+
+.trend-bars-wrapper {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 160px;
+  padding-bottom: 0.5rem;
+}
+
+.trend-bar-column {
+  flex: 1;
+  min-width: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  cursor: pointer;
+}
+
+.trend-bar-track {
+  width: 100%;
+  max-width: 44px;
+  height: 120px;
+  background: var(--bg-subtle);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid var(--border-color);
+  transition: border-color var(--transition);
+}
+
+.trend-bar-column:hover .trend-bar-track {
+  border-color: var(--primary);
+}
+
+.trend-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, var(--gold) 0%, var(--primary) 100%);
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+  transition: height 0.4s cubic-bezier(0.16, 1, 0.3, 1), filter var(--transition);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 4px;
+}
+
+.trend-bar-column:hover .trend-bar-fill {
+  filter: brightness(1.15);
+}
+
+.trend-bar-val {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+
+.trend-bar-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-top: 0.5rem;
+  white-space: nowrap;
+}
+
+.trend-bar-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  background: var(--toast-bg);
+  color: #fff;
+  padding: 0.45rem 0.75rem;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+  box-shadow: var(--shadow-md);
+  border-left: 2px solid var(--gold);
+}
+
+.trend-bar-column:hover .trend-bar-tooltip {
+  display: block;
+}
+
+/* Badges for Visitor Logs Table */
+.visitor-page-badge {
+  display: inline-block;
+  padding: 0.2rem 0.55rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: monospace;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--border-color);
+}
+
+.visitor-page-badge.badge-home {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.visitor-page-badge.badge-profile {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
+.visitor-page-badge.badge-admin {
+  background: rgba(220, 38, 38, 0.12);
+  color: var(--primary);
+  border-color: rgba(220, 38, 38, 0.3);
+}
+
+.visitor-page-badge.badge-general {
+  background: var(--bg-subtle);
+  color: var(--text-main);
+}
+
+.visitor-device-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.visitor-source-badge {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.breakdown-label-path {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

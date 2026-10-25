@@ -9,7 +9,7 @@ const os = require('os');
 const { OAuth2Client } = require('google-auth-library');
 require('dotenv').config();
 
-const { initDb, AdminUser, User, DataRecord, DataSchema } = require('./db');
+const { initDb, AdminUser, User, DataRecord, DataSchema, VisitorLog } = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -144,6 +144,55 @@ function buildSearchTextRegex(queryStr) {
   }
 
   return escaped;
+}
+
+// ----------------- VISITOR ANALYTICS HELPERS -----------------
+function parseUserAgentInfo(uaStr) {
+  const ua = (uaStr || '').toLowerCase();
+  let deviceType = 'Desktop';
+  if (/tablet|ipad|playbook|silk/i.test(ua)) {
+    deviceType = 'Tablet';
+  } else if (/mobile|iphone|ipod|android.*mobile|blackberry|iemobile|opera mini|windows phone/i.test(ua)) {
+    deviceType = 'Mobile';
+  }
+
+  let os = 'Unknown';
+  if (/windows/i.test(ua)) os = 'Windows';
+  else if (/macintosh|mac os x/i.test(ua)) os = 'macOS';
+  else if (/android/i.test(ua)) os = 'Android';
+  else if (/iphone|ipad|ipod/i.test(ua)) os = 'iOS';
+  else if (/linux/i.test(ua)) os = 'Linux';
+  else if (/cros/i.test(ua)) os = 'Chrome OS';
+
+  let browser = 'Unknown';
+  if (/edg\//i.test(ua)) browser = 'Edge';
+  else if (/samsungbrowser/i.test(ua)) browser = 'Samsung Internet';
+  else if (/opr\/|opera/i.test(ua)) browser = 'Opera';
+  else if (/chrome|crios/i.test(ua) && !/edg\//i.test(ua)) browser = 'Chrome';
+  else if (/firefox|fxios/i.test(ua)) browser = 'Firefox';
+  else if (/safari/i.test(ua) && !/chrome|crios/i.test(ua)) browser = 'Safari';
+  else if (/ucbrowser/i.test(ua)) browser = 'UC Browser';
+
+  return { deviceType, os, browser };
+}
+
+function maskIpAddress(rawIp) {
+  if (!rawIp) return 'Anonymous';
+  const clean = rawIp.replace(/^::ffff:/, '').trim();
+  if (clean === '127.0.0.1' || clean === '::1') return 'Localhost';
+
+  if (clean.includes('.')) {
+    const parts = clean.split('.');
+    if (parts.length === 4) {
+      return `${parts[0]}.${parts[1]}.${parts[2]}.***`;
+    }
+  } else if (clean.includes(':')) {
+    const parts = clean.split(':');
+    if (parts.length >= 2) {
+      return `${parts[0]}:${parts[1]}:****:****`;
+    }
+  }
+  return clean.substring(0, 12) + '***';
 }
 
 async function refreshSchemaMetadata() {
@@ -1131,6 +1180,263 @@ app.get('/api/admin/analytics', requireAdmin, async (req, res) => {
   } catch (err) {
     console.error('Fetch analytics error:', err);
     return res.status(500).json({ success: false, error: 'Failed to generate analytics.' });
+  }
+});
+
+// ----------------- SITE VISITOR TRACKING & ANALYTICS API -----------------
+
+// PUBLIC VISITOR TRACKING BEACON ENDPOINT
+app.post('/api/analytics/visit', async (req, res) => {
+  try {
+    const { visitorId, sessionId, path: reqPath, pageTitle, referrer, screenRes } = req.body || {};
+    const rawIp = req.headers['x-forwarded-for']?.split(',')[0]?.trim() || req.headers['x-real-ip'] || req.socket.remoteAddress || '';
+    const uaStr = req.headers['user-agent'] || '';
+    const { deviceType, os, browser } = parseUserAgentInfo(uaStr);
+
+    let cleanPath = (reqPath || '/').split('?')[0].trim();
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+    if (cleanPath.length > 1 && cleanPath.endsWith('/')) cleanPath = cleanPath.slice(0, -1);
+
+    let cleanReferrer = (referrer || 'Direct').trim();
+    if (!cleanReferrer) cleanReferrer = 'Direct';
+
+    // Asynchronously insert log so the HTTP response is instantaneous
+    VisitorLog.create({
+      visitor_id: (visitorId || '').substring(0, 64),
+      session_id: (sessionId || '').substring(0, 64),
+      ip: maskIpAddress(rawIp),
+      path: cleanPath.substring(0, 200),
+      page_title: (pageTitle || 'Yuva Blood Forum').substring(0, 200),
+      referrer: cleanReferrer.substring(0, 200),
+      user_agent: uaStr.substring(0, 500),
+      device_type: deviceType,
+      browser,
+      os,
+      screen_res: (screenRes || '').substring(0, 50),
+      visited_at: new Date()
+    }).catch(e => console.warn('Visitor log insertion notice:', e.message));
+
+    return res.json({ success: true });
+  } catch (err) {
+    return res.status(200).json({ success: false }); // Always 200 to prevent console noise on client
+  }
+});
+
+// GET ADMIN VISITOR ANALYTICS & STATS
+app.get('/api/admin/visitors/stats', requireAdmin, async (req, res) => {
+  try {
+    const timeframe = req.query.timeframe || 'all';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(100, Math.max(10, parseInt(req.query.limit, 10) || 25));
+    const offset = (page - 1) * limit;
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+    let timeFilter = {};
+    if (timeframe === 'today') {
+      timeFilter = { visited_at: { $gte: todayStart } };
+    } else if (timeframe === '7days') {
+      timeFilter = { visited_at: { $gte: sevenDaysAgo } };
+    } else if (timeframe === '30days') {
+      timeFilter = { visited_at: { $gte: thirtyDaysAgo } };
+    }
+
+    // High performance aggregations in parallel
+    const [
+      totalVisits,
+      uniqueVisitorIds,
+      todayVisits,
+      todayUniqueIds,
+      last7DaysVisits,
+      topPagesAgg,
+      deviceAgg,
+      browserAgg,
+      osAgg,
+      referrerAgg,
+      recentLogs,
+      filteredTotalLogs
+    ] = await Promise.all([
+      VisitorLog.countDocuments(timeFilter),
+      VisitorLog.distinct('visitor_id', timeFilter),
+      VisitorLog.countDocuments({ visited_at: { $gte: todayStart } }),
+      VisitorLog.distinct('visitor_id', { visited_at: { $gte: todayStart } }),
+      VisitorLog.countDocuments({ visited_at: { $gte: sevenDaysAgo } }),
+      VisitorLog.aggregate([
+        { $match: timeFilter },
+        { $group: { _id: '$path', count: { $sum: 1 }, title: { $first: '$page_title' } } },
+        { $sort: { count: -1 } },
+        { $limit: 8 }
+      ]),
+      VisitorLog.aggregate([
+        { $match: timeFilter },
+        { $group: { _id: '$device_type', count: { $sum: 1 } } },
+        { $sort: { count: -1 } }
+      ]),
+      VisitorLog.aggregate([
+        { $match: timeFilter },
+        { $group: { _id: '$browser', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 }
+      ]),
+      VisitorLog.aggregate([
+        { $match: timeFilter },
+        { $group: { _id: '$os', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 6 }
+      ]),
+      VisitorLog.aggregate([
+        { $match: timeFilter },
+        { $group: { _id: '$referrer', count: { $sum: 1 } } },
+        { $sort: { count: -1 } },
+        { $limit: 8 }
+      ]),
+      VisitorLog.find(timeFilter)
+        .sort({ visited_at: -1 })
+        .skip(offset)
+        .limit(limit)
+        .lean(),
+      VisitorLog.countDocuments(timeFilter)
+    ]);
+
+    // Format top pages with human-friendly names
+    const topPages = topPagesAgg.map(p => {
+      let label = p._id || '/';
+      if (label === '/' || label === '/index.html') label = 'Home / Donor Directory (/)';
+      else if (label === '/profile.html') label = 'Donor Profile Portal (/profile.html)';
+      else if (label === '/admin.html') label = 'Admin Dashboard (/admin.html)';
+      return {
+        path: p._id,
+        label,
+        count: p.count,
+        percentage: totalVisits > 0 ? Math.round((p.count / totalVisits) * 100) : 0
+      };
+    });
+
+    // Format devices with percentages
+    const devices = deviceAgg.map(d => ({
+      name: d._id || 'Desktop',
+      count: d.count,
+      percentage: totalVisits > 0 ? Math.round((d.count / totalVisits) * 100) : 0
+    }));
+
+    // Format browsers with percentages
+    const browsers = browserAgg.map(b => ({
+      name: b._id || 'Unknown',
+      count: b.count,
+      percentage: totalVisits > 0 ? Math.round((b.count / totalVisits) * 100) : 0
+    }));
+
+    // Format OS
+    const operatingSystems = osAgg.map(o => ({
+      name: o._id || 'Unknown',
+      count: o.count,
+      percentage: totalVisits > 0 ? Math.round((o.count / totalVisits) * 100) : 0
+    }));
+
+    // Format referrers
+    const referrers = referrerAgg.map(r => ({
+      name: r._id || 'Direct',
+      count: r.count,
+      percentage: totalVisits > 0 ? Math.round((r.count / totalVisits) * 100) : 0
+    }));
+
+    // Generate last 7 days daily trend
+    const dailyTrend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+      const dStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dEnd = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
+      const label = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const isoDate = dStart.toISOString().split('T')[0];
+      dailyTrend.push({ date: isoDate, label, start: dStart, end: dEnd });
+    }
+
+    const trendResults = await Promise.all(
+      dailyTrend.map(async day => {
+        const [dayViews, dayUniq] = await Promise.all([
+          VisitorLog.countDocuments({ visited_at: { $gte: day.start, $lte: day.end } }),
+          VisitorLog.distinct('visitor_id', { visited_at: { $gte: day.start, $lte: day.end } })
+        ]);
+        return {
+          date: day.date,
+          label: day.label,
+          pageviews: dayViews,
+          unique: dayUniq.filter(Boolean).length
+        };
+      })
+    );
+
+    const formattedLogs = recentLogs.map(log => ({
+      id: log._id.toString(),
+      visitedAt: log.visited_at,
+      path: log.path || '/',
+      pageTitle: log.page_title || '',
+      deviceType: log.device_type || 'Desktop',
+      browser: log.browser || 'Unknown',
+      os: log.os || 'Unknown',
+      ip: log.ip || 'Localhost',
+      referrer: log.referrer || 'Direct'
+    }));
+
+    return res.json({
+      success: true,
+      timeframe,
+      overview: {
+        totalVisits,
+        uniqueVisitors: uniqueVisitorIds.filter(Boolean).length,
+        todayVisits,
+        todayUnique: todayUniqueIds.filter(Boolean).length,
+        last7DaysVisits
+      },
+      topPages,
+      devices,
+      browsers,
+      operatingSystems,
+      referrers,
+      dailyTrend: trendResults,
+      logs: formattedLogs,
+      pagination: {
+        page,
+        limit,
+        totalLogs: filteredTotalLogs,
+        totalPages: Math.ceil(filteredTotalLogs / limit) || 1
+      }
+    });
+  } catch (err) {
+    console.error('Visitor stats error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve visitor statistics.' });
+  }
+});
+
+// CLEAR VISITOR LOGS (Admin only maintenance)
+app.post('/api/admin/visitors/clear', requireAdmin, async (req, res) => {
+  try {
+    const { range } = req.body || {};
+    let filter = {};
+
+    if (range === '90days') {
+      const d = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+      filter = { visited_at: { $lt: d } };
+    } else if (range === '30days') {
+      const d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      filter = { visited_at: { $lt: d } };
+    } else if (range === 'all') {
+      filter = {};
+    } else {
+      return res.status(400).json({ success: false, error: 'Invalid clear range specified.' });
+    }
+
+    const result = await VisitorLog.deleteMany(filter);
+    return res.json({
+      success: true,
+      message: `Cleared ${result.deletedCount || 0} visitor log record(s).`
+    });
+  } catch (err) {
+    console.error('Clear visitor logs error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to clear visitor logs.' });
   }
 });
 

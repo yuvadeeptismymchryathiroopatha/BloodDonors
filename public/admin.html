@@ -36,8 +36,8 @@
 
       <div class="nav-sponsor" title="Official Sponsor: St. Thomas Hospital Chethipuzha">
         <span class="nav-sponsor-divider" aria-hidden="true"></span>
-        <a href="https://stthomashospital.co.in" target="_blank" rel="noopener noreferrer" class="nav-sponsor-link" aria-label="Official Sponsor St. Thomas Hospital Chethipuzha">
-          <img src="images/STH-LOGO-light.svg" alt="St. Thomas Hospital Chethipuzha" class="nav-sponsor-logo" data-sponsor-logo height="30" loading="lazy" decoding="async">
+        <a href="https://www.st-thomashospital.com" target="_blank" rel="noopener noreferrer" class="nav-sponsor-link" aria-label="Official Sponsor St. Thomas Hospital Chethipuzha">
+          <img src="images/STH-LOGO-light.svg" alt="St. Thomas Hospital Chethipuzha" class="nav-sponsor-logo" data-sponsor-logo height="26" loading="lazy" decoding="async">
         </a>
       </div>
 
@@ -136,6 +136,22 @@
               <span class="stat-label">In Cooling Period (&lt; 90 Days)</span>
             </div>
           </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">🌐</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statTotalVisitors">0</span>
+              <span class="stat-label">Total Site Visits</span>
+            </div>
+          </div>
+
+          <div class="stat-card">
+            <div class="stat-icon">⚡</div>
+            <div class="stat-info">
+              <span class="stat-num" id="statTodayVisitors">0</span>
+              <span class="stat-label">Visits Today</span>
+            </div>
+          </div>
         </div>
 
         <!-- NAVIGATION SHORTCUT TABS -->
@@ -145,6 +161,9 @@
           </button>
           <button class="tab-btn" id="tabAnalyticsBtn" onclick="adminApp.switchTab('analytics')">
             📈 Regional & Group Analytics
+          </button>
+          <button class="tab-btn" id="tabVisitorsBtn" onclick="adminApp.switchTab('visitors')">
+            👁️ Site Visitors &amp; Traffic
           </button>
           <button class="tab-btn" id="tabUploadBtn" onclick="adminApp.switchTab('upload')">
             📤 Upload CSV File
@@ -309,6 +328,151 @@
           </div>
         </div>
 
+        <!-- TAB: SITE VISITORS & TRAFFIC ANALYTICS -->
+        <div id="tabVisitors" class="tab-content hidden">
+          <div class="analytics-header" style="flex-wrap: wrap; gap: 0.75rem;">
+            <div>
+              <h3 style="margin-bottom: 0.2rem;">👁️ Site Visitors &amp; Traffic Analytics</h3>
+              <p class="text-muted" style="font-size: 0.85rem; margin: 0;">Real-time site traffic, unique visitors, popular pages, devices, and visitor logs.</p>
+            </div>
+            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+              <select id="visitorTimeframeSelect" class="filter-select" onchange="adminApp.changeVisitorTimeframe(this.value)" style="min-width: 130px; font-size: 0.85rem; padding: 0.35rem 0.6rem;">
+                <option value="all" selected>All Time</option>
+                <option value="today">Today</option>
+                <option value="7days">Last 7 Days</option>
+                <option value="30days">Last 30 Days</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="adminApp.loadVisitorStats(true)">🔄 Refresh</button>
+              <button class="btn btn-danger btn-sm" onclick="adminApp.confirmClearVisitorLogs()" title="Clear old visitor logs" style="padding: 0.35rem 0.7rem; font-size: 0.8rem;">🗑️ Clear Logs</button>
+            </div>
+          </div>
+
+          <!-- Visitor Stat Metric Cards -->
+          <div class="analytics-summary-grid" style="margin-bottom: 1.5rem;">
+            <div class="stat-card">
+              <div class="stat-icon">🌐</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statVisitorTotal">0</span>
+                <span class="stat-label">Total Pageviews</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">👤</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statVisitorUnique">0</span>
+                <span class="stat-label">Unique Visitors</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">⚡</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statVisitorToday">0</span>
+                <span class="stat-label">Today's Visits (<span id="statVisitorTodayUnique">0</span> unique)</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon">📈</div>
+              <div class="stat-info">
+                <span class="stat-num" id="statVisitorWeek">0</span>
+                <span class="stat-label">Last 7 Days Visits</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Trend Bar Chart (Last 7 Days) -->
+          <div class="analytics-card" style="margin-bottom: 1.5rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+              <h4 style="margin: 0;">📊 Daily Traffic Trend (Past 7 Days)</h4>
+              <span class="text-muted" style="font-size: 0.8rem;">Pageviews &amp; Unique Visitors</span>
+            </div>
+            <div id="visitorTrendChart" class="visitor-trend-container">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Breakdown Grid -->
+          <div class="analytics-sections-grid" style="margin-bottom: 1.5rem;">
+            <!-- Top Pages -->
+            <div class="analytics-card">
+              <h4>📄 Most Visited Pages</h4>
+              <div id="visitorTopPagesList" class="breakdown-list">
+                <!-- Dynamic pages list -->
+              </div>
+            </div>
+
+            <!-- Device Breakdown -->
+            <div class="analytics-card">
+              <h4>📱 Device Breakdown</h4>
+              <div id="visitorDeviceList" class="breakdown-list">
+                <!-- Dynamic device list -->
+              </div>
+            </div>
+
+            <!-- Top Referrers -->
+            <div class="analytics-card">
+              <h4>🧭 Traffic Sources &amp; Referrers</h4>
+              <div id="visitorReferrerList" class="breakdown-list">
+                <!-- Dynamic referrer list -->
+              </div>
+            </div>
+
+            <!-- Browsers & OS -->
+            <div class="analytics-card">
+              <h4>🌐 Top Browsers &amp; Operating Systems</h4>
+              <div id="visitorBrowserGrid" class="blood-group-stats-grid">
+                <!-- Dynamic browser/OS pills -->
+              </div>
+            </div>
+          </div>
+
+          <!-- Recent Visitor Activity Log Table -->
+          <div class="analytics-card full-width">
+            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+              <div>
+                <h4 style="margin: 0;">🕒 Recent Visitor Activity Log</h4>
+                <p class="text-muted" style="font-size: 0.8rem; margin: 0.15rem 0 0;">Chronological record of recent site visitors and accessed pages.</p>
+              </div>
+              <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <label for="visitorLogLimitSelect" style="font-size: 0.85rem; color: var(--text-muted); font-weight: 600;">Show:</label>
+                <select id="visitorLogLimitSelect" class="filter-select" onchange="adminApp.changeVisitorLimit(this.value)" style="padding: 0.25rem 0.5rem; font-size: 0.85rem; width: auto;">
+                  <option value="10">10</option>
+                  <option value="25" selected>25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="admin-data-table visitor-logs-table">
+                <thead>
+                  <tr>
+                    <th>Time</th>
+                    <th>Visited Page</th>
+                    <th>Device</th>
+                    <th>Browser / OS</th>
+                    <th>Referrer Source</th>
+                    <th>IP (Masked)</th>
+                  </tr>
+                </thead>
+                <tbody id="visitorLogTableBody">
+                  <!-- Dynamic rows -->
+                </tbody>
+              </table>
+            </div>
+
+            <div id="visitorLogPagination" class="pagination-wrapper" style="margin-top: 1rem; flex-wrap: wrap; gap: 0.75rem;">
+              <button id="visitorPrevBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeVisitorPage(-1)">&larr; Prev</button>
+              <span id="visitorPageIndicator" class="page-indicator">Page 1 of 1</span>
+              <button id="visitorNextBtn" class="btn btn-outline btn-sm" onclick="adminApp.changeVisitorPage(1)">Next &rarr;</button>
+            </div>
+          </div>
+
+        </div>
+
         <!-- TAB 3: CSV UPLOAD -->
         <div id="tabUpload" class="tab-content hidden">
           <div class="upload-zone" id="dropZone">
@@ -412,8 +576,8 @@
     <div class="container">
       <div class="footer-sponsor">
         <span class="footer-sponsor-eyebrow">OFFICIAL HEALTHCARE PARTNER &amp; SPONSOR</span>
-        <a href="https://stthomashospital.co.in" target="_blank" rel="noopener noreferrer" class="footer-sponsor-link" title="St. Thomas Hospital Chethipuzha — blessed for healing">
-          <img src="images/STH-LOGO-light.svg" alt="St. Thomas Hospital Chethipuzha" class="footer-sponsor-logo" data-sponsor-logo height="54" loading="lazy" decoding="async">
+        <a href="https://www.st-thomashospital.com" target="_blank" rel="noopener noreferrer" class="footer-sponsor-link" title="St. Thomas Hospital Chethipuzha — blessed for healing">
+          <img src="images/STH-LOGO-light.svg" alt="St. Thomas Hospital Chethipuzha" class="footer-sponsor-logo" data-sponsor-logo height="48" loading="lazy" decoding="async">
         </a>
         <p class="footer-sponsor-desc">St. Thomas Hospital, Chethipuzha &bull; Blessed for Healing</p>
       </div>
