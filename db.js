@@ -147,35 +147,29 @@ async function initDb() {
     throw e;
   }
 
-  // Seed / update default admin user (optimized without redundant bcrypt hashing)
+  // Seed / update default admin users (optimized with bcrypt check)
   try {
-    const defaultUsername = 'smymChry@blood';
     const defaultPassword = "It'sAdmin@2026";
+    const adminAccounts = ['smymchry@blood', 'admin'];
 
-    let admin = await AdminUser.findOne({ username: defaultUsername.toLowerCase() });
-    if (!admin) {
-      const firstAdmin = await AdminUser.findOne();
-      const salt = await bcrypt.genSalt(10);
-      const hash = await bcrypt.hash(defaultPassword, salt);
-      if (firstAdmin) {
-        firstAdmin.username = defaultUsername;
-        firstAdmin.password_hash = hash;
-        await firstAdmin.save();
-        console.log(`Admin user updated to: ${defaultUsername}`);
-      } else {
+    for (const username of adminAccounts) {
+      let admin = await AdminUser.findOne({ username });
+      if (!admin) {
+        const salt = await bcrypt.genSalt(10);
+        const hash = await bcrypt.hash(defaultPassword, salt);
         await AdminUser.create({
-          username: defaultUsername,
+          username,
           password_hash: hash
         });
-        console.log(`Default admin user seeded: ${defaultUsername}`);
-      }
-    } else {
-      const isMatch = await bcrypt.compare(defaultPassword, admin.password_hash);
-      if (!isMatch) {
-        const salt = await bcrypt.genSalt(10);
-        admin.password_hash = await bcrypt.hash(defaultPassword, salt);
-        await admin.save();
-        console.log(`Admin user password updated for: ${defaultUsername}`);
+        console.log(`Default admin user seeded: ${username}`);
+      } else {
+        const isMatch = await bcrypt.compare(defaultPassword, admin.password_hash);
+        if (!isMatch) {
+          const salt = await bcrypt.genSalt(10);
+          admin.password_hash = await bcrypt.hash(defaultPassword, salt);
+          await admin.save();
+          console.log(`Admin user password updated for: ${username}`);
+        }
       }
     }
   } catch (seedErr) {
